@@ -14,7 +14,7 @@ export async function handleSell(
   // Load all merchant products for fuzzy matching
   const { data: products } = await supabaseAdmin
     .from('products')
-    .select('id, name, stock_qty, price')
+    .select('id, name, stock_qty, price, low_stock_threshold')
     .eq('merchant_id', merchant.id)
 
   if (!products || products.length === 0) {
