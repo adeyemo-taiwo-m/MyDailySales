@@ -1,4 +1,6 @@
 export async function sendWhatsAppMessage(to: string, message: string): Promise<void> {
+  console.log(`\n========================================\n💬 BOT REPLY TO ${to}:\n${message}\n========================================\n`)
+
   const phoneId = process.env.META_PHONE_NUMBER_ID || 'placeholder-phone-number-id'
   const META_API_URL = `https://graph.facebook.com/v19.0/${phoneId}/messages`
 
