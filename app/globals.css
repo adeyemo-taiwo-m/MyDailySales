@@ -1,0 +1,441 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap");
+
+:root {
+  --primary-color: #2563eb;
+  --buttons-color: #1d4ed8;
+  --medium-color: #60a5fa;
+  --light-color: #dbeafe;
+  --success-color: #10b981;
+  --cancel-color: #dc2626;
+  --gray-100: #111827;
+  --gray-80: #374151;
+  --gray-60: #6b7280;
+  --gray-40: #d1d5db;
+  --gray-20: #f3f4f6;
+  --radial-color-light: #60a5fa;
+  --radial-color-dark: #1d4ed8;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 62.5%;
+}
+
+body {
+  font-size: 1.6rem;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 400;
+  color: var(--gray-80);
+  background-color: var(--light-color);
+  position: relative;
+  overflow-x: hidden;
+}
+
+.material-icon-logo {
+  font-family: "Material Symbols Outlined";
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-size: 3rem;
+  color: var(--buttons-color);
+}
+
+.material-icon {
+  font-family: "Material Symbols Outlined";
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-size: 1rem;
+  color: var(--primary-color);
+  margin-right: 1rem;
+  border-radius: 400rem;
+}
+
+.material-icon-add {
+  font-family: "Material Symbols Outlined";
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  font-size: 3rem;
+  color: var(--gray-20);
+}
+
+.logo {
+  margin: 4rem 3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.earning {
+  margin: 4rem 3rem;
+  position: relative;
+  z-index: 10;
+}
+
+.earning-box {
+  color: white;
+  text-align: center;
+  margin-top: 2.5rem;
+  background-image: linear-gradient(
+    to right,
+    var(--radial-color-dark),
+    var(--radial-color-light)
+  );
+  padding: 2.4rem;
+  border-radius: 1.6rem;
+  border: 0.2rem solid var(--light-color);
+  box-shadow: 0 0.8rem 2.5rem #6b72803f;
+}
+
+.earning-digit {
+  display: flex;
+  justify-content: center;
+  font-size: 4rem;
+  font-weight: 550;
+}
+
+.earning-inner-box {
+  color: var(--primary-color);
+  text-align: center;
+  margin: 0 auto;
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: space-around;
+  padding: 1.75rem 1.89rem;
+  background-color: var(--light-color);
+  border-radius: 0.8rem;
+}
+
+.products {
+  padding: 15rem 30px 10rem 30px;
+  margin-top: -15rem;
+  margin-bottom: -10rem;
+  background-color: var(--gray-20);
+  position: relative;
+  border-radius: 7.5rem 5rem 0 0;
+}
+
+.products-head {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 3.2rem;
+}
+
+.products-see {
+  color: var(--buttons-color);
+  background-color: transparent;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.products-recent {
+  font-weight: 600;
+  font-size: 2rem;
+}
+
+.product {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.product-side {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+.product-side img {
+  width: 7rem;
+}
+
+.product-side-down {
+  margin-top: 1.6rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.btn-available {
+  padding: 1.6rem;
+  height: 4.5rem;
+  display: flex;
+  align-items: center;
+  background-color: var(--light-color);
+  border: none;
+  color: var(--buttons-color);
+  border-radius: 0.8rem;
+  font-size: 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-sold {
+  padding: 1.6rem;
+  height: 4.5rem;
+  display: flex;
+  align-items: center;
+  background-color: var(--buttons-color);
+  border: none;
+  color: var(--gray-20);
+  border-radius: 0.8rem;
+  font-size: 1.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-mark {
+  padding: 1.6rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background-color: var(--buttons-color);
+  border: none;
+  color: var(--gray-20);
+  border-radius: 0.4rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.navigation {
+  display: flex;
+  justify-content: center;
+  margin-top: 5rem;
+  background-image: linear-gradient(
+    to right,
+    var(--radial-color-dark),
+    var(--radial-color-light)
+  );
+  position: sticky;
+  height: 8rem;
+  border-radius: 6rem 6rem 0 0;
+}
+
+.navigation-icons {
+  display: flex;
+  z-index: 100;
+  top: 15%;
+  justify-content: space-around;
+  width: 100%;
+}
+.product-add {
+  background-color: var(--medium-color);
+  color: var(--gray-20);
+  padding: 1.8rem;
+  border-radius: 100%;
+  border: 1rem solid var(--gray-20);
+  position: absolute;
+  top: -60%;
+  right: 50%;
+  transform: translateX(50%);
+  z-index: 999;
+  cursor: pointer;
+}
+
+.header {
+  margin: 4rem 3rem 0 3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.all-product-side-down {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.product-buttons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.391rem;
+}
+
+.product-container {
+  width: 16rem;
+  background-color: var(--light-color);
+  padding: 0.389rem;
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+
+.bg {
+  height: 60vh;
+  margin: -4rem;
+  border-radius: 15%;
+  background-color: var(--gray-20);
+  position: absolute;
+  z-index: -10;
+}
+
+.all-products-section {
+  padding: 4rem 3rem;
+  margin-top: 3rem;
+  background-color: var(--gray-20);
+  border-radius: 7.5rem 5rem 0 0;
+}
+
+.all-products-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1.5rem;
+}
+
+.product-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5rem;
+}
+
+.overlay-add-product,
+.overlay {
+  position: fixed;
+  background-color: #11182797;
+  z-index: 1000;
+  width: 100vw;
+  height: 100vh;
+  top: 0;
+  right: 0;
+  backdrop-filter: blur(0.2rem);
+}
+
+.add-product-form,
+.side-nav {
+  width: 80vw;
+  background-color: var(--light-color);
+  padding: 4rem;
+  border-radius: 1.6rem;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+}
+
+.add-product-form p {
+  font-size: 1.4rem;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.add-product-form label {
+  font-size: 1.6rem;
+  text-align: center;
+  font-weight: 500;
+  color: var(--gray-80);
+  opacity: 0.9;
+}
+
+.add-product-form div {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  width: 100%;
+  align-items: center;
+}
+
+.add-product-form section {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 2rem;
+}
+
+.add-product-form input {
+  border: none;
+  height: 3.6rem;
+  border-radius: 0.5rem;
+  text-align: center;
+  font-size: 1.4rem;
+  padding: 0.5rem;
+}
+
+.add-product-form input::placeholder {
+  text-align: center;
+  opacity: 0.5;
+  font-family: inherit;
+}
+
+.add-product-form input:focus {
+  outline: none;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.side-nav li {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  font-size: 1.8rem;
+  cursor: pointer;
+}
+
+.side-nav li:hover {
+  color: var(--primary-color);
+}
+
+.side-nav li:hover span {
+  color: var(--medium-color);
+}
+
+.how {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4rem;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--light-color);
+  z-index: 1002;
+  height: auto;
+  padding: 7rem 4rem;
+  border-radius: 2rem;
+  width: 85vw;
+}
+
+.how img {
+  width: 20rem;
+  align-self: center;
+}
+
+.how h3 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 2rem;
+}
+
+.how p {
+  font-size: 1.5rem;
+  line-height: 2.5rem;
+  color: var(--gray-80);
+  opacity: 0.8;
+}
+
+.how .copyright {
+  font-weight: 500;
+  color: var(--primary-color);
+  font-size: 1.2rem;
+}
+
+.how .copyright-skill {
+  font-weight: 500;
+  color: var(--gray-60);
+  font-size: 0.8rem;
+  margin-top: -1rem;
+}
