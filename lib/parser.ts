@@ -42,7 +42,7 @@ export function parseCommand(rawText: string): ParsedCommand {
 
   // ── DEBT ──────────────────────────────────────────
   // debt <name> <amount>
-  const debtMatch = text.match(/^debt\s+(.+?)\s+(\S+)$/)
+  const debtMatch = text.match(/^debt\s+(.+?)\s+([#₦\d].*)$/)
   if (debtMatch) {
     const name = debtMatch[1].trim()
     const amount = parseAmount(debtMatch[2])
@@ -53,7 +53,7 @@ export function parseCommand(rawText: string): ParsedCommand {
 
   // ── PAID ──────────────────────────────────────────
   // paid <name> <amount>
-  const paidMatch = text.match(/^paid\s+(.+?)\s+(\S+)$/)
+  const paidMatch = text.match(/^paid\s+(.+?)\s+([#₦\d].*)$/)
   if (paidMatch) {
     const name = paidMatch[1].trim()
     const amount = parseAmount(paidMatch[2])
