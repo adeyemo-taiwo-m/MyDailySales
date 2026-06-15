@@ -35,7 +35,20 @@ export async function sendWhatsAppMessage(to: string, message: string): Promise<
   }
 
   try {
+    // Show typing presence to simulate human typing
+    try {
+      await _socket.sendPresenceUpdate('composing', jid)
+    } catch (_) {}
+
+    // Wait a brief moment simulating typing speed
+    await new Promise(resolve => setTimeout(resolve, 1200))
+
     await _socket.sendMessage(jid, { text: message })
+
+    // Stop typing presence
+    try {
+      await _socket.sendPresenceUpdate('paused', jid)
+    } catch (_) {}
   } catch (error) {
     console.error(`Failed to send message to ${jid}:`, error)
     throw error
