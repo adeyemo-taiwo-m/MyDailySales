@@ -1,4 +1,4 @@
-import type { WASocket } from 'baileys'
+import type { WASocket } from '@whiskeysockets/baileys'
 
 // Shared socket instance — set once when bot connects
 let _socket: WASocket | null = null

@@ -6,7 +6,7 @@ import makeWASocket, {
   WAMessageContent,
   proto,
   WASocket,
-} from 'baileys'
+} from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import * as qrcode from 'qrcode-terminal'
 import { setSocket } from './whatsapp'
