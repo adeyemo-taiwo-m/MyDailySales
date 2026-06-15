@@ -1,70 +1,150 @@
-# Getting Started with Create React App
+# MyDailySales (MDS) — WhatsApp-First Merchant ERP
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+MyDailySales (MDS) is a lightweight, WhatsApp-first sales, inventory, and debt management system designed specifically for micro-merchants and small businesses. 
 
-## Available Scripts
+Instead of downloading complex applications or using slow, offline ledger books, merchants run their entire business operations directly through a WhatsApp chat interface. MDS automatically syncs all data to a Supabase database and serves a clean web-based dashboard for real-time analytics.
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## 🌟 Key Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **WhatsApp-First UX**: Log sales, track stock levels, and record customer debts directly via natural text commands.
+- **Robust Fuzzy Matching**: Forgives spelling mistakes when typing product or customer names (e.g., typing "gari" matches "garri").
+- **Intelligent Debt Ledger**: Tracks outstanding customer balances, handles payouts, and prevents double-clearing of matching entries.
+- **Real-Time Web Dashboard**: A minimalistic, high-performance dashboard showing today's summaries, out-of-stock items, and credit lists.
+- **Self-Hosted Baileys Integration**: Uses the WhatsApp Web WebSocket protocol (`baileys`) to run the bot on any WhatsApp number without Meta API fees.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## 🏗️ Architecture
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```
+                      +-----------------------------+
+                      |       WhatsApp Client       |
+                      +--------------+--------------+
+                                     |
+                             WebSocket Connection
+                                     |
+                                     v
+                      +--------------+--------------+
+                      |         Baileys Bot         |
+                      |          (Server)           |
+                      +--------------+--------------+
+                                     |
+                               Route Message
+                                     v
+                      +--------------+--------------+
+                      |        Message Router       |
+                      +--------+-----------+--------+
+                               |           |
+                        Fuzzy Matching  Command Parser
+                               |           |
+                               +-----+-----+
+                                     |
+                               Database Sync
+                                     v
+                      +--------------+--------------+
+                      |      Supabase Database      |
+                      +--------------+--------------+
+                                     ^
+                                 JSON REST
+                                     |
+                      +--------------+--------------+
+                      |      Next.js Dashboard      |
+                      +-----------------------------+
+```
 
-### `npm run build`
+- **Backend / Bot Runner**: Node.js custom HTTP server (`server.ts`) running the Baileys WebSocket client alongside the Next.js framework handler.
+- **Database**: Supabase PostgreSQL with real-time sync, transaction logging, and row-level security.
+- **Frontend Dashboard**: Next.js (React) static/dynamic dashboard page reading from custom API routes.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 📖 Commands Guide
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Onboarding Flow (First-Time Users)
+When a new number texts the bot, they are automatically placed in the onboarding flow:
+1. **Welcome**: `👋 Welcome to MyDailySales!...`
+2. **Business Name**: Send your business name (e.g., `FreshMart`).
+3. **Add First Product**: Format: `add <name> <price> <qty>` (e.g., `add garri 500 20`).
+4. **Complete Onboarding**: Type `done` once you've added at least one product.
 
-### `npm run eject`
+### Business Management Commands
+Once onboarding is complete, merchants can send the following commands at any time:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+| Action | Command Format | Example |
+| :--- | :--- | :--- |
+| **Log a Sale** | `sell <product> <qty> <price>` | `sell garri 2 500` |
+| **Record Debt** | `debt <customer_name> <amount>` | `debt Emeka 3000` |
+| **Clear Debt** | `paid <customer_name> <amount>` | `paid Emeka 3000` |
+| **Add Stock** | `stock add <product> <qty>` | `stock add garri 20` |
+| **Check Stock** | `stock check` / `stock check <product>` | `stock check garri` |
+| **Today's Summary** | `summary` / `report` | `summary` |
+| **Full Debt List** | `debts` / `owing` | `debts` |
+| **Recent History** | `history` / `log` | `history` |
+| **Undo Last Sale** | `undo` | `undo` |
+| **Help Menu** | `help` / `commands` | `help` |
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## ⚙️ Environment Variables
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Create a `.env.local` file in the root directory:
 
-## Learn More
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+# App Settings
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+PORT=3000
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
 
-### Code Splitting
+## 🚀 Getting Started
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### 1. Prerequisites
+- Node.js (v18 or higher recommended)
+- Supabase account (with PostgreSQL setup)
 
-### Analyzing the Bundle Size
+### 2. Installation
+Clone the repository and install dependencies:
+```bash
+git clone https://github.com/adeyemo-taiwo-m/MyDailySales.git
+cd MyDailySales
+npm install
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### 3. Setup Database Schema
+Execute the SQL script located in `supabase/migrations/001_initial_schema.sql` in your Supabase SQL Editor. This will provision the tables:
+- `merchants`
+- `products`
+- `sales_log`
+- `credit_book`
 
-### Making a Progressive Web App
+### 4. Running the Development Server
+Start both the WhatsApp bot connection and Next.js:
+```bash
+npm run dev
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Upon launching, a **QR Code** will render in the terminal. Open WhatsApp on your phone -> three dots/Settings -> **Linked Devices** -> **Link a Device** and scan the QR code to authenticate the bot.
 
-### Advanced Configuration
+Your dashboard will be available at:
+`http://localhost:3000/dashboard`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+---
 
-### Deployment
+## 🛡️ Security Note
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+The `auth_info_baileys/` directory stores your WhatsApp session credentials.
+> [!CAUTION]
+> **Never commit the `auth_info_baileys/` folder to Git.** If exposed, anyone can hijack your WhatsApp bot number. It is included in `.gitignore` by default.
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 📄 License
+This project is licensed under the MIT License.
