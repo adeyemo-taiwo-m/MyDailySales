@@ -106,7 +106,9 @@ export async function startBot(): Promise<WASocket> {
 
       // Skip group messages — bot is for individual chats only
       if (msg.key.remoteJid?.endsWith('@g.us')) continue
-      if (!msg.key.remoteJid?.endsWith('@s.whatsapp.net')) continue
+      if (!msg.key.remoteJid?.endsWith('@s.whatsapp.net') && !msg.key.remoteJid?.endsWith('@lid')) continue
+
+      console.log(`[Bot] store contact lookup for ${msg.key.remoteJid}:`, JSON.stringify(store.contacts[msg.key.remoteJid!] || null))
 
       // Skip non-text messages
       const text = extractTextFromMessage(msg.message)
