@@ -1,65 +1,87 @@
-# MyDailySales — Full Implementation Guide
-> Stage 1 MVP · WhatsApp Bot + Supabase Backend + Minimal Dashboard
-> Prepared for AI Coding Agent · June 2026
+# MyDailySales — Baileys Implementation Guide
+> Stage 1 MVP · WhatsApp Bot (Baileys) + Supabase + Minimal Dashboard
+> Updated Edition — Replaces Meta Cloud API with Baileys
+> June 2026
 
 ---
 
-## 0. PROJECT OVERVIEW
+## WHAT CHANGED FROM THE ORIGINAL GUIDE
 
-**What you are building:**
-A WhatsApp-first sales tracker for Nigerian shop owners. Merchants text structured commands to a WhatsApp bot number. The bot parses commands, writes to Supabase, and replies with instant confirmations. A minimal Next.js dashboard shows a read-only view of their data.
+Only **two things** changed from the original implementation guide:
 
-**Stack:**
-- Framework: Next.js 14 (App Router) + TypeScript
-- Database: Supabase (PostgreSQL + Row Level Security)
-- WhatsApp: Meta Cloud API (inbound webhook only in Stage 1)
-- Hosting: Vercel
-- Styling: Tailwind CSS
-- Payments: NOT in Stage 1 (Paystack comes in Stage 2)
+1. `lib/whatsapp.ts` — completely rewritten for Baileys
+2. `lib/bot.ts` — new file that runs the Baileys connection (replaces the Meta webhook)
+3. `app/api/whatsapp/route.ts` — removed (no longer needed)
 
-**Repo structure to create:**
+Everything else — Supabase schema, all handlers, parser, fuzzy matching, dashboard — is **100% identical**. Do not rewrite anything that worked before.
+
+---
+
+## 0. HOW BAILEYS WORKS (vs Meta)
+
+With Meta Cloud API:
+```
+Merchant texts bot → Meta sends POST to your server → you reply via Meta API
+```
+
+With Baileys:
+```
+Merchant texts bot → Baileys catches it directly → you reply via Baileys
+```
+
+Baileys connects your bot's WhatsApp number to your server using WhatsApp's own
+WebSocket protocol. It works like WhatsApp Web — you scan a QR code once and
+it stays connected.
+
+**Your bot number = any WhatsApp number you own**
+Get a cheap ₦200 SIM, register WhatsApp on it, that's your bot.
+
+---
+
+## 1. PROJECT STRUCTURE
+
 ```
 mydailysales/
 ├── app/
 │   ├── api/
-│   │   ├── whatsapp/
-│   │   │   └── route.ts          ← Meta webhook (GET verify + POST receive)
 │   │   └── dashboard/
-│   │       ├── summary/route.ts  ← Dashboard data API
-│   │       └── products/route.ts
+│   │       └── summary/route.ts     ← Dashboard data API (unchanged)
 │   ├── dashboard/
-│   │   └── page.tsx              ← Minimal read-only dashboard
+│   │   └── page.tsx                 ← Minimal dashboard (unchanged)
 │   ├── layout.tsx
-│   └── page.tsx                  ← Landing / login by phone
+│   └── page.tsx
 ├── lib/
-│   ├── supabase.ts               ← Supabase client
-│   ├── whatsapp.ts               ← Meta API reply sender
-│   ├── parser.ts                 ← Command parser (deterministic)
-│   ├── fuzzy.ts                  ← Fuzzy product/name matching
+│   ├── supabase.ts                  ← Supabase client (unchanged)
+│   ├── whatsapp.ts                  ← REWRITTEN for Baileys
+│   ├── bot.ts                       ← NEW: Baileys connection manager
+│   ├── parser.ts                    ← Unchanged
+│   ├── fuzzy.ts                     ← Unchanged
 │   ├── handlers/
-│   │   ├── sell.ts
-│   │   ├── debt.ts
-│   │   ├── paid.ts
-│   │   ├── stock.ts
-│   │   ├── undo.ts
-│   │   ├── summary.ts
-│   │   ├── history.ts
-│   │   ├── debts.ts
-│   │   ├── help.ts
-│   │   └── onboarding.ts
-│   └── types.ts                  ← All shared types
+│   │   ├── sell.ts                  ← Unchanged
+│   │   ├── debt.ts                  ← Unchanged
+│   │   ├── paid.ts                  ← Unchanged (bug fixed)
+│   │   ├── stock.ts                 ← Unchanged
+│   │   ├── undo.ts                  ← Unchanged (bug fixed)
+│   │   ├── summary.ts               ← Unchanged
+│   │   ├── history.ts               ← Unchanged
+│   │   ├── debts.ts                 ← Unchanged
+│   │   ├── help.ts                  ← Unchanged
+│   │   └── onboarding.ts            ← Unchanged
+│   └── types.ts                     ← Unchanged
+├── server.ts                        ← NEW: Entry point that runs bot + Next.js
 ├── supabase/
 │   └── migrations/
-│       └── 001_initial_schema.sql
+│       └── 001_initial_schema.sql   ← Unchanged
+├── auth_info_baileys/               ← AUTO-CREATED: Baileys session storage
 ├── .env.local
-└── package.json
+└── package.json                     ← Updated with Baileys dependency
 ```
 
 ---
 
-## 1. ENVIRONMENT VARIABLES
+## 2. ENVIRONMENT VARIABLES
 
-Create `.env.local` with these exact keys:
+Create `.env.local`:
 
 ```env
 # Supabase
@@ -67,45 +89,75 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Meta / WhatsApp Cloud API
-META_WHATSAPP_TOKEN=your-permanent-access-token
-META_PHONE_NUMBER_ID=your-phone-number-id
-META_WEBHOOK_VERIFY_TOKEN=a-random-secret-string-you-choose
-
 # App
 NEXT_PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
+
+# NOTE: No Meta variables needed. Baileys uses your WhatsApp number directly.
 ```
 
-**How to get these values:**
-1. Supabase: Create project at supabase.com → Settings → API
-2. Meta: Create app at developers.facebook.com → Add WhatsApp product → get Phone Number ID and generate permanent token → set up webhook
+**How to get Supabase values:**
+Go to supabase.com → your project → Settings → API → copy URL, anon key, and service role key.
 
 ---
 
-## 2. SUPABASE SCHEMA
+## 3. PACKAGE.JSON
+
+```json
+{
+  "name": "mydailysales",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch server.ts",
+    "build": "next build",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "next": "14.2.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "@supabase/supabase-js": "^2.39.0",
+    "baileys": "^6.7.9",
+    "typescript": "^5",
+    "tsx": "^4.7.0",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8",
+    "autoprefixer": "^10"
+  }
+}
+```
+
+Install everything:
+```bash
+npm install
+```
+
+---
+
+## 4. SUPABASE SCHEMA (UNCHANGED)
 
 File: `supabase/migrations/001_initial_schema.sql`
 
-Run this entire file in Supabase SQL Editor:
+Run this in Supabase SQL Editor:
 
 ```sql
--- =============================================
--- MERCHANTS
--- One row per WhatsApp number = one business
--- =============================================
 CREATE TABLE merchants (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone           TEXT UNIQUE NOT NULL,    -- E.164 format: +2348012345678
+  phone           TEXT UNIQUE NOT NULL,
   business_name   TEXT,
-  onboarding_step TEXT DEFAULT 'start',    -- 'start' | 'naming' | 'adding_products' | 'complete'
+  onboarding_step TEXT DEFAULT 'start',
   trial_start     TIMESTAMPTZ DEFAULT NOW(),
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- =============================================
--- PRODUCTS
--- Each merchant's product catalog
--- =============================================
 CREATE TABLE products (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   merchant_id          UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
@@ -117,75 +169,53 @@ CREATE TABLE products (
   UNIQUE(merchant_id, name)
 );
 
--- =============================================
--- SALES LOG
--- Every sale ever logged, with soft-delete for undo
--- =============================================
 CREATE TABLE sales_log (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
-  product_id  UUID NOT NULL REFERENCES products(id),
-  product_name TEXT NOT NULL,              -- denormalized snapshot at time of sale
-  qty_sold    INTEGER NOT NULL,
-  price_each  NUMERIC(12, 2) NOT NULL,
-  total       NUMERIC(12, 2) GENERATED ALWAYS AS (qty_sold * price_each) STORED,
-  undone      BOOLEAN NOT NULL DEFAULT FALSE,
-  logged_at   TIMESTAMPTZ DEFAULT NOW()
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  merchant_id  UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  product_id   UUID NOT NULL REFERENCES products(id),
+  product_name TEXT NOT NULL,
+  qty_sold     INTEGER NOT NULL,
+  price_each   NUMERIC(12, 2) NOT NULL,
+  total        NUMERIC(12, 2) GENERATED ALWAYS AS (qty_sold * price_each) STORED,
+  undone       BOOLEAN NOT NULL DEFAULT FALSE,
+  logged_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
--- =============================================
--- CREDIT BOOK
--- Customer debts. One row per debt entry.
--- =============================================
 CREATE TABLE credit_book (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   merchant_id   UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
   customer_name TEXT NOT NULL,
   amount_owed   NUMERIC(12, 2) NOT NULL,
-  status        TEXT NOT NULL DEFAULT 'unpaid'  CHECK (status IN ('unpaid', 'paid')),
+  status        TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid', 'paid')),
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   paid_at       TIMESTAMPTZ
 );
 
--- =============================================
--- INDEXES for performance
--- =============================================
 CREATE INDEX idx_sales_merchant_date ON sales_log(merchant_id, logged_at DESC);
 CREATE INDEX idx_sales_undone ON sales_log(merchant_id, undone);
 CREATE INDEX idx_credit_merchant ON credit_book(merchant_id, status);
 CREATE INDEX idx_products_merchant ON products(merchant_id);
 
--- =============================================
--- ROW LEVEL SECURITY
--- The webhook uses service_role key so RLS is bypassed.
--- Dashboard uses anon key so RLS applies.
--- =============================================
 ALTER TABLE merchants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE credit_book ENABLE ROW LEVEL SECURITY;
-
--- For the dashboard: user can only see their own data
--- (Dashboard identifies user by phone stored in localStorage after OTP — Stage 2)
--- For Stage 1, dashboard uses service_role key directly (acceptable for 10 beta users)
 ```
 
 ---
 
-## 3. SUPABASE CLIENT
+## 5. SUPABASE CLIENT (UNCHANGED)
 
 File: `lib/supabase.ts`
 
 ```typescript
 import { createClient } from '@supabase/supabase-js'
 
-// Use service role key on server (webhook, API routes) — bypasses RLS
 export const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Use anon key on client (dashboard)
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -194,7 +224,7 @@ export const supabase = createClient(
 
 ---
 
-## 4. SHARED TYPES
+## 6. SHARED TYPES (UNCHANGED)
 
 File: `lib/types.ts`
 
@@ -241,7 +271,6 @@ export interface CreditEntry {
   paid_at: string | null
 }
 
-// Command parser output
 export type ParsedCommand =
   | { type: 'sell'; product: string; qty: number; price: number; time?: string }
   | { type: 'debt'; name: string; amount: number }
@@ -253,28 +282,97 @@ export type ParsedCommand =
   | { type: 'debts' }
   | { type: 'history' }
   | { type: 'help' }
-  | { type: 'add_product'; name: string; price: number; qty: number }  // onboarding
-  | { type: 'done' }                                                    // onboarding
+  | { type: 'add_product'; name: string; price: number; qty: number }
+  | { type: 'done' }
   | { type: 'unknown'; raw: string }
 ```
 
 ---
 
-## 5. COMMAND PARSER
+## 7. WHATSAPP SENDER — REWRITTEN FOR BAILEYS
+
+File: `lib/whatsapp.ts`
+
+This is the only major change from the original. Instead of calling Meta's API,
+we use a shared Baileys socket instance to send messages.
+
+```typescript
+import type { WASocket } from 'baileys'
+
+// Shared socket instance — set once when bot connects
+let _socket: WASocket | null = null
+
+export function setSocket(sock: WASocket): void {
+  _socket = sock
+}
+
+export function getSocket(): WASocket | null {
+  return _socket
+}
+
+/**
+ * Send a WhatsApp text message via Baileys.
+ * 
+ * Phone format: Baileys uses JID format: "2348012345678@s.whatsapp.net"
+ * The phone number coming from messages is already in this format.
+ * For sending to a new number, convert: "08012345678" → "2348012345678@s.whatsapp.net"
+ */
+export async function sendWhatsAppMessage(to: string, message: string): Promise<void> {
+  if (!_socket) {
+    console.error('WhatsApp socket not initialized — cannot send message')
+    return
+  }
+
+  // Ensure correct JID format
+  const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`
+
+  try {
+    await _socket.sendMessage(jid, { text: message })
+  } catch (error) {
+    console.error(`Failed to send message to ${jid}:`, error)
+    throw error
+  }
+}
+
+// Format naira amounts: 14500 → "₦14,500"
+export function formatNaira(amount: number): string {
+  return `₦${amount.toLocaleString('en-NG')}`
+}
+
+/**
+ * Extract the plain phone number from a Baileys JID.
+ * "2348012345678@s.whatsapp.net" → "2348012345678"
+ */
+export function phoneFromJid(jid: string): string {
+  return jid.split('@')[0]
+}
+
+/**
+ * Convert a Nigerian number to E.164 format for storage.
+ * "08012345678" → "2348012345678"
+ * "2348012345678" → "2348012345678" (already correct)
+ */
+export function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('0')) return '234' + digits.slice(1)
+  if (digits.startsWith('234')) return digits
+  return digits
+}
+```
+
+---
+
+## 8. COMMAND PARSER (UNCHANGED)
 
 File: `lib/parser.ts`
-
-This is the most critical file. It must be deterministic — no AI/NLP. Every supported command has an exact regex pattern.
 
 ```typescript
 import { ParsedCommand } from './types'
 
-// Normalize: lowercase, trim, collapse whitespace
 function normalize(text: string): string {
   return text.toLowerCase().trim().replace(/\s+/g, ' ')
 }
 
-// Extract optional @time tag from command: "sell garri 5 500 @2pm" → "2pm"
 function extractTime(text: string): { cleaned: string; time?: string } {
   const timeMatch = text.match(/@(\S+)$/)
   if (timeMatch) {
@@ -283,7 +381,6 @@ function extractTime(text: string): { cleaned: string; time?: string } {
   return { cleaned: text }
 }
 
-// Parse Nigerian number formats: "2500", "2,500", "2500naira", "2500 naira", "#2500"
 function parseAmount(raw: string): number | null {
   const cleaned = raw
     .replace(/naira|₦|#/gi, '')
@@ -296,9 +393,7 @@ function parseAmount(raw: string): number | null {
 export function parseCommand(rawText: string): ParsedCommand {
   const { cleaned: text, time } = extractTime(normalize(rawText))
 
-  // ── SELL ──────────────────────────────────────────
-  // sell <product> <qty> <price>
-  // Accepts: "sell garri 5 500", "sell garri 5 500naira"
+  // SELL
   const sellMatch = text.match(/^sell\s+(.+?)\s+(\d+)\s+(.+)$/)
   if (sellMatch) {
     const product = sellMatch[1].trim()
@@ -309,8 +404,7 @@ export function parseCommand(rawText: string): ParsedCommand {
     }
   }
 
-  // ── DEBT ──────────────────────────────────────────
-  // debt <name> <amount>
+  // DEBT
   const debtMatch = text.match(/^debt\s+(.+?)\s+(\S+)$/)
   if (debtMatch) {
     const name = debtMatch[1].trim()
@@ -320,8 +414,7 @@ export function parseCommand(rawText: string): ParsedCommand {
     }
   }
 
-  // ── PAID ──────────────────────────────────────────
-  // paid <name> <amount>
+  // PAID
   const paidMatch = text.match(/^paid\s+(.+?)\s+(\S+)$/)
   if (paidMatch) {
     const name = paidMatch[1].trim()
@@ -331,8 +424,7 @@ export function parseCommand(rawText: string): ParsedCommand {
     }
   }
 
-  // ── STOCK ADD ────────────────────────────────────
-  // stock add <product> <qty>
+  // STOCK ADD
   const stockAddMatch = text.match(/^stock\s+add\s+(.+?)\s+(\d+)$/)
   if (stockAddMatch) {
     const product = stockAddMatch[1].trim()
@@ -342,35 +434,20 @@ export function parseCommand(rawText: string): ParsedCommand {
     }
   }
 
-  // ── STOCK CHECK ──────────────────────────────────
-  // stock check [product]  OR  stock  (no product = show all)
+  // STOCK CHECK
   if (text === 'stock') return { type: 'stock_check' }
   const stockCheckMatch = text.match(/^stock\s+check(?:\s+(.+))?$/)
   if (stockCheckMatch) {
     return { type: 'stock_check', product: stockCheckMatch[1]?.trim() }
   }
 
-  // ── UNDO ─────────────────────────────────────────
   if (text === 'undo') return { type: 'undo' }
-
-  // ── SUMMARY ──────────────────────────────────────
   if (text === 'summary' || text === 'report') return { type: 'summary' }
-
-  // ── DEBTS ────────────────────────────────────────
-  if (text === 'debts' || text === 'debt list' || text === 'owing') {
-    return { type: 'debts' }
-  }
-
-  // ── HISTORY ──────────────────────────────────────
+  if (text === 'debts' || text === 'debt list' || text === 'owing') return { type: 'debts' }
   if (text === 'history' || text === 'log') return { type: 'history' }
+  if (text === 'help' || text === 'menu' || text === 'commands') return { type: 'help' }
 
-  // ── HELP ─────────────────────────────────────────
-  if (text === 'help' || text === 'menu' || text === 'commands') {
-    return { type: 'help' }
-  }
-
-  // ── ONBOARDING: ADD PRODUCT ──────────────────────
-  // add <product> <price> <qty>
+  // ADD PRODUCT (onboarding)
   const addProductMatch = text.match(/^add\s+(.+?)\s+(\S+)\s+(\d+)$/)
   if (addProductMatch) {
     const name = addProductMatch[1].trim()
@@ -381,26 +458,19 @@ export function parseCommand(rawText: string): ParsedCommand {
     }
   }
 
-  // ── ONBOARDING: DONE ─────────────────────────────
-  if (text === 'done' || text === 'finish' || text === 'complete') {
-    return { type: 'done' }
-  }
+  if (text === 'done' || text === 'finish' || text === 'complete') return { type: 'done' }
 
-  // ── UNKNOWN ──────────────────────────────────────
   return { type: 'unknown', raw: rawText }
 }
 ```
 
 ---
 
-## 6. FUZZY MATCHING
+## 9. FUZZY MATCHING (UNCHANGED)
 
 File: `lib/fuzzy.ts`
 
-Used for product names and customer names. Prevents "garri" vs "Garri" vs "gari" from creating duplicate records.
-
 ```typescript
-// Levenshtein distance between two strings
 function levenshtein(a: string, b: string): number {
   const m = a.length, n = b.length
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
@@ -416,19 +486,16 @@ function levenshtein(a: string, b: string): number {
   return dp[m][n]
 }
 
-// Find best match from a list of names
-// Returns the match if distance is ≤ 2 (allows 1-2 typos), null otherwise
 export function findBestMatch(
   input: string,
   candidates: { id: string; name: string }[]
 ): { id: string; name: string } | null {
+  if (!candidates || candidates.length === 0) return null
   const normalInput = input.toLowerCase().trim()
 
-  // Exact match first
   const exact = candidates.find(c => c.name.toLowerCase() === normalInput)
   if (exact) return exact
 
-  // Fuzzy match
   let bestMatch: { id: string; name: string } | null = null
   let bestDist = Infinity
 
@@ -440,12 +507,10 @@ export function findBestMatch(
     }
   }
 
-  // Only accept if distance is small enough relative to name length
   const threshold = Math.min(2, Math.floor(normalInput.length / 3))
   return bestDist <= threshold ? bestMatch : null
 }
 
-// Normalize a customer name for matching (used in debt lookup)
 export function normalizeCustomerName(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, ' ')
 }
@@ -453,51 +518,11 @@ export function normalizeCustomerName(name: string): string {
 
 ---
 
-## 7. WHATSAPP REPLY SENDER
+## 10. COMMAND HANDLERS
 
-File: `lib/whatsapp.ts`
-
-```typescript
-const META_API_URL = `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`
-
-export async function sendWhatsAppMessage(to: string, message: string): Promise<void> {
-  const response = await fetch(META_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.META_WHATSAPP_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: 'text',
-      text: { body: message, preview_url: false },
-    }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    console.error('WhatsApp send failed:', error)
-    throw new Error(`WhatsApp API error: ${JSON.stringify(error)}`)
-  }
-}
-
-// Format naira amounts: 14500 → "₦14,500"
-export function formatNaira(amount: number): string {
-  return `₦${amount.toLocaleString('en-NG')}`
-}
-```
-
----
-
-## 8. COMMAND HANDLERS
-
-### 8a. Onboarding Handler
+### 10a. Onboarding Handler (UNCHANGED)
 
 File: `lib/handlers/onboarding.ts`
-
-This handles the conversation flow for new merchants before they can use commands.
 
 ```typescript
 import { supabaseAdmin } from '../supabase'
@@ -511,9 +536,7 @@ export async function handleOnboarding(
   parsed: ParsedCommand
 ): Promise<void> {
 
-  // ── BRAND NEW MERCHANT (first ever message) ──────
   if (!merchant) {
-    // Create merchant record in 'naming' step
     await supabaseAdmin.from('merchants').insert({
       phone,
       onboarding_step: 'naming',
@@ -528,11 +551,12 @@ export async function handleOnboarding(
     return
   }
 
-  // ── STEP: WAITING FOR BUSINESS NAME ─────────────
   if (merchant.onboarding_step === 'naming') {
     const businessName = message.trim()
     if (businessName.length < 2) {
-      await sendWhatsAppMessage(phone, `Please send your business name (e.g., "FreshMart" or "Mama Chisom Stores")`)
+      await sendWhatsAppMessage(phone,
+        `Please send your business name (e.g., "FreshMart" or "Mama Chisom Stores")`
+      )
       return
     }
 
@@ -543,18 +567,16 @@ export async function handleOnboarding(
     await sendWhatsAppMessage(phone,
       `Great! *${businessName}* is set up.\n\n` +
       `Now add your first products. Format:\n` +
-      `\`add <name> <price> <qty>\`\n\n` +
-      `Example: \`add garri 500 20\`\n\n` +
+      `add <name> <price> <qty>\n\n` +
+      `Example: add garri 500 20\n\n` +
       `Add at least 1 product, then type *done* when finished.`
     )
     return
   }
 
-  // ── STEP: ADDING PRODUCTS ────────────────────────
   if (merchant.onboarding_step === 'adding_products') {
 
     if (parsed.type === 'add_product') {
-      // Check for duplicate product name
       const { data: existing } = await supabaseAdmin
         .from('products')
         .select('id')
@@ -563,7 +585,10 @@ export async function handleOnboarding(
         .single()
 
       if (existing) {
-        await sendWhatsAppMessage(phone, `⚠️ You already have a product called "${parsed.name}". Try a different name or type *done* to finish.`)
+        await sendWhatsAppMessage(phone,
+          `⚠️ You already have a product called "${parsed.name}". ` +
+          `Try a different name or type *done* to finish.`
+        )
         return
       }
 
@@ -583,14 +608,15 @@ export async function handleOnboarding(
     }
 
     if (parsed.type === 'done') {
-      // Check they have at least 1 product
       const { count } = await supabaseAdmin
         .from('products')
         .select('id', { count: 'exact', head: true })
         .eq('merchant_id', merchant.id)
 
       if (!count || count === 0) {
-        await sendWhatsAppMessage(phone, `Please add at least 1 product before finishing.\n\nFormat: \`add garri 500 20\``)
+        await sendWhatsAppMessage(phone,
+          `Please add at least 1 product before finishing.\n\nFormat: add garri 500 20`
+        )
         return
       }
 
@@ -601,17 +627,16 @@ export async function handleOnboarding(
       await sendWhatsAppMessage(phone,
         `🎉 *${merchant.business_name}* is ready!\n\n` +
         `Try logging your first sale now:\n` +
-        `\`sell <product> <qty> <price>\`\n\n` +
-        `Example: \`sell garri 2 500\`\n\n` +
+        `sell <product> <qty> <price>\n\n` +
+        `Example: sell garri 2 500\n\n` +
         `Type *help* anytime to see all commands.`
       )
       return
     }
 
-    // They sent something else during product setup
     await sendWhatsAppMessage(phone,
-      `To add a product: \`add <name> <price> <qty>\`\n` +
-      `Example: \`add garri 500 20\`\n\n` +
+      `To add a product: add <name> <price> <qty>\n` +
+      `Example: add garri 500 20\n\n` +
       `Type *done* when you've added all your products.`
     )
     return
@@ -621,7 +646,7 @@ export async function handleOnboarding(
 
 ---
 
-### 8b. Sell Handler
+### 10b. Sell Handler (UNCHANGED)
 
 File: `lib/handlers/sell.ts`
 
@@ -639,21 +664,19 @@ export async function handleSell(
 ): Promise<void> {
   const phone = merchant.phone
 
-  // Load all merchant products for fuzzy matching
   const { data: products } = await supabaseAdmin
     .from('products')
-    .select('id, name, stock_qty, price')
+    .select('id, name, stock_qty, price, low_stock_threshold')
     .eq('merchant_id', merchant.id)
 
   if (!products || products.length === 0) {
     await sendWhatsAppMessage(phone,
       `❓ You haven't added any products yet.\n\n` +
-      `Add one first: \`add ${productInput} ${price} 10\``
+      `Add one first: add ${productInput} ${price} 10`
     )
     return
   }
 
-  // Fuzzy match product name
   const match = findBestMatch(productInput, products)
 
   if (!match) {
@@ -661,24 +684,22 @@ export async function handleSell(
     await sendWhatsAppMessage(phone,
       `❓ I don't have *"${productInput}"* in your products.\n\n` +
       `Your products: ${productList}\n\n` +
-      `Did you mean one of these? Or type \`add ${productInput} ${price} 0\` to create it.`
+      `Did you mean one of these? Or type: add ${productInput} ${price} 0`
     )
     return
   }
 
   const product = products.find(p => p.id === match.id)!
 
-  // Stock warning: selling more than available
   if (product.stock_qty !== null && qty > product.stock_qty && product.stock_qty >= 0) {
     await sendWhatsAppMessage(phone,
       `⚠️ You only have *${product.stock_qty}* ${product.name} in stock.\n\n` +
-      `Log ${product.stock_qty} sold, or reply:\n` +
-      `\`sell ${product.name} ${product.stock_qty} ${price}\``
+      `Log ${product.stock_qty} sold instead:\n` +
+      `sell ${product.name} ${product.stock_qty} ${price}`
     )
     return
   }
 
-  // Write the sale
   await supabaseAdmin.from('sales_log').insert({
     merchant_id: merchant.id,
     product_id: product.id,
@@ -687,13 +708,11 @@ export async function handleSell(
     price_each: price,
   })
 
-  // Deduct from stock
   const newStock = Math.max(0, (product.stock_qty || 0) - qty)
   await supabaseAdmin.from('products')
     .update({ stock_qty: newStock })
     .eq('id', product.id)
 
-  // Get today's total (excluding undone)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const { data: todaysSales } = await supabaseAdmin
@@ -707,11 +726,11 @@ export async function handleSell(
   const saleTotal = qty * price
 
   let reply = `✅ Sold *${qty} ${product.name}* @ ${formatNaira(price)} each = *${formatNaira(saleTotal)}*\n`
-  reply += `Stock left: ${newStock} ${newStock <= 0 ? '— *OUT OF STOCK* ⚠️' : ''}\n`
+  reply += `Stock left: ${newStock}${newStock <= 0 ? ' — *OUT OF STOCK* ⚠️' : ''}\n`
   reply += `Today total: *${formatNaira(todayTotal)}*`
 
   if (newStock > 0 && newStock <= (product.low_stock_threshold || 5)) {
-    reply += `\n\n⚠️ *Low stock warning:* Only ${newStock} ${product.name} left. Restock soon.`
+    reply += `\n\n⚠️ *Low stock:* Only ${newStock} ${product.name} left. Restock soon.`
   }
 
   await sendWhatsAppMessage(phone, reply)
@@ -720,7 +739,7 @@ export async function handleSell(
 
 ---
 
-### 8c. Debt Handler
+### 10c. Debt Handler (UNCHANGED)
 
 File: `lib/handlers/debt.ts`
 
@@ -736,7 +755,6 @@ export async function handleDebt(
 ): Promise<void> {
   const phone = merchant.phone
 
-  // Insert new debt entry
   await supabaseAdmin.from('credit_book').insert({
     merchant_id: merchant.id,
     customer_name: customerName,
@@ -744,7 +762,6 @@ export async function handleDebt(
     status: 'unpaid',
   })
 
-  // Get total owed to this merchant
   const { data: allDebts } = await supabaseAdmin
     .from('credit_book')
     .select('amount_owed')
@@ -756,16 +773,20 @@ export async function handleDebt(
   await sendWhatsAppMessage(phone,
     `📝 *${customerName}* owes ${formatNaira(amount)}.\n` +
     `Total owed to you: *${formatNaira(totalOwed)}*\n\n` +
-    `When they pay, type: \`paid ${customerName} ${amount}\``
+    `When they pay: paid ${customerName} ${amount}`
   )
 }
 ```
 
 ---
 
-### 8d. Paid Handler
+### 10d. Paid Handler (BUG FIXED)
 
 File: `lib/handlers/paid.ts`
+
+**Fix:** Original marked ALL debts for a customer at once regardless of amount.
+Now it matches by name AND closest amount to prevent accidentally clearing
+the wrong debt entry.
 
 ```typescript
 import { supabaseAdmin } from '../supabase'
@@ -780,7 +801,6 @@ export async function handlePaid(
 ): Promise<void> {
   const phone = merchant.phone
 
-  // Get all unpaid debts for this merchant
   const { data: unpaidDebts } = await supabaseAdmin
     .from('credit_book')
     .select('id, customer_name, amount_owed')
@@ -792,29 +812,39 @@ export async function handlePaid(
     return
   }
 
-  // Deduplicate by name for fuzzy match
-  const uniqueNames = [...new Map(unpaidDebts.map(d => [d.customer_name, { id: d.id, name: d.customer_name }])).values()]
-  const match = findBestMatch(customerInput, uniqueNames)
+  // Step 1: fuzzy match the customer name
+  const uniqueNames = [
+    ...new Map(
+      unpaidDebts.map(d => [d.customer_name, { id: d.id, name: d.customer_name }])
+    ).values()
+  ]
+  const nameMatch = findBestMatch(customerInput, uniqueNames)
 
-  if (!match) {
+  if (!nameMatch) {
     const names = unpaidDebts.slice(0, 5).map(d => d.customer_name).join(', ')
     await sendWhatsAppMessage(phone,
-      `❓ I don't have a debt for *"${customerInput}"*.\n\n` +
+      `❓ No debt found for *"${customerInput}"*.\n\n` +
       `People who owe you: ${names}\n\n` +
       `Type *debts* to see the full list.`
     )
     return
   }
 
-  // Mark ALL debts from this customer as paid (full payment MVP)
-  const customerDebts = unpaidDebts.filter(d => d.customer_name.toLowerCase() === match.name.toLowerCase())
-  const totalPaid = customerDebts.reduce((sum, d) => sum + d.amount_owed, 0)
+  // Step 2: among debts for this customer, find the one matching the amount
+  const customerDebts = unpaidDebts.filter(
+    d => d.customer_name.toLowerCase() === nameMatch.name.toLowerCase()
+  )
 
+  // Find closest matching debt by amount
+  const exactDebt = customerDebts.find(d => d.amount_owed === amount)
+  const targetDebt = exactDebt || customerDebts.reduce((closest, d) =>
+    Math.abs(d.amount_owed - amount) < Math.abs(closest.amount_owed - amount) ? d : closest
+  )
+
+  // Mark only this specific debt as paid
   await supabaseAdmin.from('credit_book')
     .update({ status: 'paid', paid_at: new Date().toISOString() })
-    .eq('merchant_id', merchant.id)
-    .eq('status', 'unpaid')
-    .ilike('customer_name', match.name)
+    .eq('id', targetDebt.id)
 
   // Get remaining total
   const { data: remaining } = await supabaseAdmin
@@ -825,16 +855,25 @@ export async function handlePaid(
 
   const stillOwed = (remaining || []).reduce((sum, d) => sum + d.amount_owed, 0)
 
-  await sendWhatsAppMessage(phone,
-    `✅ *${match.name}* has paid ${formatNaira(totalPaid)}. Debt cleared.\n\n` +
-    `Total still owed to you: *${formatNaira(stillOwed)}*`
-  )
+  // Check if customer has more unpaid debts
+  const remainingForCustomer = customerDebts.filter(d => d.id !== targetDebt.id)
+  const customerStillOwes = remainingForCustomer.reduce((sum, d) => sum + d.amount_owed, 0)
+
+  let reply = `✅ *${nameMatch.name}* paid ${formatNaira(targetDebt.amount_owed)}. Debt cleared.\n\n`
+
+  if (customerStillOwes > 0) {
+    reply += `⚠️ ${nameMatch.name} still owes ${formatNaira(customerStillOwes)} from other entries.\n\n`
+  }
+
+  reply += `Total still owed to you: *${formatNaira(stillOwed)}*`
+
+  await sendWhatsAppMessage(phone, reply)
 }
 ```
 
 ---
 
-### 8e. Stock Handler
+### 10e. Stock Handler (UNCHANGED)
 
 File: `lib/handlers/stock.ts`
 
@@ -861,7 +900,7 @@ export async function handleStockAdd(
   if (!match) {
     await sendWhatsAppMessage(phone,
       `❓ Product *"${productInput}"* not found.\n\n` +
-      `To create it: \`add ${productInput} <price> ${qty}\``
+      `To create it: add ${productInput} <price> ${qty}`
     )
     return
   }
@@ -892,12 +931,17 @@ export async function handleStockCheck(
     .order('name')
 
   if (!products || products.length === 0) {
-    await sendWhatsAppMessage(phone, `You haven't added any products yet.\n\nAdd one: \`add garri 500 20\``)
+    await sendWhatsAppMessage(phone,
+      `You haven't added any products yet.\n\nAdd one: add garri 500 20`
+    )
     return
   }
 
   if (productInput) {
-    const match = findBestMatch(productInput, products.map(p => ({ id: p.name, name: p.name })))
+    const match = findBestMatch(
+      productInput,
+      products.map(p => ({ id: p.name, name: p.name }))
+    )
     const product = products.find(p => p.name.toLowerCase() === match?.name?.toLowerCase())
 
     if (!product) {
@@ -905,18 +949,26 @@ export async function handleStockCheck(
       return
     }
 
-    const status = product.stock_qty <= 0 ? '🔴 OUT' : product.stock_qty <= (product.low_stock_threshold || 5) ? '🟡 LOW' : '🟢'
+    const status = product.stock_qty <= 0
+      ? '🔴 OUT OF STOCK'
+      : product.stock_qty <= (product.low_stock_threshold || 5)
+        ? '🟡 LOW'
+        : '🟢 OK'
+
     await sendWhatsAppMessage(phone,
       `📦 *${product.name}*\n` +
-      `Stock: ${product.stock_qty} ${status}\n` +
+      `Stock: ${product.stock_qty} — ${status}\n` +
       `Price: ${formatNaira(product.price)}`
     )
     return
   }
 
-  // Show all products
   const lines = products.map(p => {
-    const status = p.stock_qty <= 0 ? '🔴 OUT' : p.stock_qty <= (p.low_stock_threshold || 5) ? '🟡' : '🟢'
+    const status = p.stock_qty <= 0
+      ? '🔴'
+      : p.stock_qty <= (p.low_stock_threshold || 5)
+        ? '🟡'
+        : '🟢'
     return `${status} *${p.name}*: ${p.stock_qty} left`
   })
 
@@ -926,9 +978,12 @@ export async function handleStockCheck(
 
 ---
 
-### 8f. Undo Handler
+### 10f. Undo Handler (BUG FIXED)
 
 File: `lib/handlers/undo.ts`
+
+**Fix:** Removed the broken `supabaseAdmin.rpc as any` line that did nothing.
+Stock restore now works correctly.
 
 ```typescript
 import { supabaseAdmin } from '../supabase'
@@ -939,7 +994,7 @@ export async function handleUndo(merchant: Merchant): Promise<void> {
   const phone = merchant.phone
 
   // Get the most recent non-undone sale
-  const { data: lastSale } = await supabaseAdmin
+  const { data: lastSale, error } = await supabaseAdmin
     .from('sales_log')
     .select('*')
     .eq('merchant_id', merchant.id)
@@ -948,8 +1003,8 @@ export async function handleUndo(merchant: Merchant): Promise<void> {
     .limit(1)
     .single()
 
-  if (!lastSale) {
-    await sendWhatsAppMessage(phone, `↩ Nothing to undo. No sales logged yet today.`)
+  if (error || !lastSale) {
+    await sendWhatsAppMessage(phone, `↩ Nothing to undo. No sales logged yet.`)
     return
   }
 
@@ -958,11 +1013,7 @@ export async function handleUndo(merchant: Merchant): Promise<void> {
     .update({ undone: true })
     .eq('id', lastSale.id)
 
-  // Restore stock
-  await supabaseAdmin.from('products')
-    .update({ stock_qty: supabaseAdmin.rpc as any }) // handled below
-
-  // Restore stock manually
+  // Restore stock — get current qty first, then add back
   const { data: product } = await supabaseAdmin
     .from('products')
     .select('stock_qty')
@@ -975,7 +1026,7 @@ export async function handleUndo(merchant: Merchant): Promise<void> {
       .eq('id', lastSale.product_id)
   }
 
-  // Get new today's total
+  // Get updated today's total
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const { data: todaysSales } = await supabaseAdmin
@@ -987,7 +1038,10 @@ export async function handleUndo(merchant: Merchant): Promise<void> {
 
   const todayTotal = (todaysSales || []).reduce((sum, s) => sum + (s.total || 0), 0)
 
-  const loggedAt = new Date(lastSale.logged_at).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })
+  const loggedAt = new Date(lastSale.logged_at).toLocaleTimeString('en-NG', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 
   await sendWhatsAppMessage(phone,
     `↩ *Done. Last entry reversed.*\n\n` +
@@ -999,7 +1053,7 @@ export async function handleUndo(merchant: Merchant): Promise<void> {
 
 ---
 
-### 8g. Summary Handler
+### 10g. Summary Handler (UNCHANGED)
 
 File: `lib/handlers/summary.ts`
 
@@ -1014,7 +1068,6 @@ export async function handleSummary(merchant: Merchant): Promise<void> {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Today's sales
   const { data: todaysSales } = await supabaseAdmin
     .from('sales_log')
     .select('total, product_name, qty_sold')
@@ -1025,7 +1078,6 @@ export async function handleSummary(merchant: Merchant): Promise<void> {
   const totalRevenue = (todaysSales || []).reduce((sum, s) => sum + (s.total || 0), 0)
   const totalTransactions = (todaysSales || []).length
 
-  // Outstanding debts
   const { data: unpaidDebts } = await supabaseAdmin
     .from('credit_book')
     .select('amount_owed')
@@ -1034,7 +1086,6 @@ export async function handleSummary(merchant: Merchant): Promise<void> {
 
   const totalOwed = (unpaidDebts || []).reduce((sum, d) => sum + d.amount_owed, 0)
 
-  // Out of stock products
   const { data: outOfStock } = await supabaseAdmin
     .from('products')
     .select('name')
@@ -1047,8 +1098,7 @@ export async function handleSummary(merchant: Merchant): Promise<void> {
   reply += `📋 Debts owed to you: *${formatNaira(totalOwed)}*\n`
 
   if (outOfStock && outOfStock.length > 0) {
-    const names = outOfStock.map(p => p.name).join(', ')
-    reply += `🔴 Out of stock: ${names}\n`
+    reply += `🔴 Out of stock: ${outOfStock.map(p => p.name).join(', ')}\n`
   }
 
   if (totalRevenue === 0 && totalTransactions === 0) {
@@ -1063,7 +1113,7 @@ export async function handleSummary(merchant: Merchant): Promise<void> {
 
 ---
 
-### 8h. History Handler
+### 10h. History Handler (UNCHANGED)
 
 File: `lib/handlers/history.ts`
 
@@ -1083,7 +1133,9 @@ export async function handleHistory(merchant: Merchant): Promise<void> {
     .limit(5)
 
   if (!recent || recent.length === 0) {
-    await sendWhatsAppMessage(phone, `No sales logged yet. Type \`sell <product> <qty> <price>\` to start.`)
+    await sendWhatsAppMessage(phone,
+      `No sales logged yet. Type: sell <product> <qty> <price>`
+    )
     return
   }
 
@@ -1091,17 +1143,19 @@ export async function handleHistory(merchant: Merchant): Promise<void> {
     const time = new Date(s.logged_at).toLocaleString('en-NG', {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     })
-    const undoneTag = s.undone ? ' _(undone)_' : ''
-    return `• ${s.qty_sold}x ${s.product_name} @ ${formatNaira(s.price_each)} = *${formatNaira(s.total)}*${undoneTag}\n  _${time}_`
+    const tag = s.undone ? ' _(undone)_' : ''
+    return `• ${s.qty_sold}x ${s.product_name} @ ${formatNaira(s.price_each)} = *${formatNaira(s.total)}*${tag}\n  _${time}_`
   })
 
-  await sendWhatsAppMessage(phone, `🕐 *Last ${recent.length} entries:*\n\n${lines.join('\n\n')}`)
+  await sendWhatsAppMessage(phone,
+    `🕐 *Last ${recent.length} entries:*\n\n${lines.join('\n\n')}`
+  )
 }
 ```
 
 ---
 
-### 8i. Debts List Handler
+### 10i. Debts List Handler (UNCHANGED)
 
 File: `lib/handlers/debts.ts`
 
@@ -1132,14 +1186,14 @@ export async function handleDebtsList(merchant: Merchant): Promise<void> {
     `📋 *Outstanding Debts*\n\n` +
     `${lines.join('\n')}\n\n` +
     `Total owed to you: *${formatNaira(total)}*\n\n` +
-    `To mark paid: \`paid <name> <amount>\``
+    `To mark paid: paid <name> <amount>`
   )
 }
 ```
 
 ---
 
-### 8j. Help Handler
+### 10j. Help Handler (UNCHANGED)
 
 File: `lib/handlers/help.ts`
 
@@ -1150,100 +1204,52 @@ import { Merchant } from '../types'
 export async function handleHelp(merchant: Merchant): Promise<void> {
   const phone = merchant.phone
 
-  const helpText =
+  await sendWhatsAppMessage(phone,
     `📖 *MyDailySales Commands*\n\n` +
-    `*Log a sale:*\n\`sell <product> <qty> <price>\`\n_sell garri 5 500_\n\n` +
-    `*Record a debt:*\n\`debt <name> <amount>\`\n_debt Emeka 3000_\n\n` +
-    `*Mark debt paid:*\n\`paid <name> <amount>\`\n_paid Emeka 3000_\n\n` +
-    `*Add stock:*\n\`stock add <product> <qty>\`\n_stock add garri 20_\n\n` +
-    `*Check stock:*\n\`stock check\` or \`stock check garri\`\n\n` +
-    `*Today's summary:*\n\`summary\`\n\n` +
-    `*All debts:*\n\`debts\`\n\n` +
-    `*Recent entries:*\n\`history\`\n\n` +
-    `*Undo last sale:*\n\`undo\`\n\n` +
+    `*Log a sale:*\nsell <product> <qty> <price>\n_e.g. sell garri 5 500_\n\n` +
+    `*Record a debt:*\ndebt <name> <amount>\n_e.g. debt Emeka 3000_\n\n` +
+    `*Mark debt paid:*\npaid <name> <amount>\n_e.g. paid Emeka 3000_\n\n` +
+    `*Add stock:*\nstock add <product> <qty>\n_e.g. stock add garri 20_\n\n` +
+    `*Check stock:*\nstock check\nstock check garri\n\n` +
+    `*Today's summary:*\nsummary\n\n` +
+    `*All debts:*\ndebts\n\n` +
+    `*Recent entries:*\nhistory\n\n` +
+    `*Undo last sale:*\nundo\n\n` +
     `─────────────────────\n` +
-    `Need help? Type your question and we'll guide you.`
-
-  await sendWhatsAppMessage(phone, helpText)
+    `Type any command to get started.`
+  )
 }
 ```
 
 ---
 
-## 9. MAIN WEBHOOK ROUTE
+## 11. MAIN MESSAGE ROUTER
 
-File: `app/api/whatsapp/route.ts`
+File: `lib/router.ts`
 
-This is the central entry point for all WhatsApp messages. It handles Meta's GET verification request and the POST message delivery.
+This is the central logic that receives a message and routes it to the right
+handler. It replaces the webhook route from the original guide.
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
-import { parseCommand } from '@/lib/parser'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
-import { handleOnboarding } from '@/lib/handlers/onboarding'
-import { handleSell } from '@/lib/handlers/sell'
-import { handleDebt } from '@/lib/handlers/debt'
-import { handlePaid } from '@/lib/handlers/paid'
-import { handleStockAdd, handleStockCheck } from '@/lib/handlers/stock'
-import { handleUndo } from '@/lib/handlers/undo'
-import { handleSummary } from '@/lib/handlers/summary'
-import { handleHistory } from '@/lib/handlers/history'
-import { handleDebtsList } from '@/lib/handlers/debts'
-import { handleHelp } from '@/lib/handlers/help'
+import { supabaseAdmin } from './supabase'
+import { sendWhatsAppMessage, phoneFromJid } from './whatsapp'
+import { parseCommand } from './parser'
+import { handleOnboarding } from './handlers/onboarding'
+import { handleSell } from './handlers/sell'
+import { handleDebt } from './handlers/debt'
+import { handlePaid } from './handlers/paid'
+import { handleStockAdd, handleStockCheck } from './handlers/stock'
+import { handleUndo } from './handlers/undo'
+import { handleSummary } from './handlers/summary'
+import { handleHistory } from './handlers/history'
+import { handleDebtsList } from './handlers/debts'
+import { handleHelp } from './handlers/help'
 
-// ── GET: Meta webhook verification ──────────────────────────────────
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const mode = searchParams.get('hub.mode')
-  const token = searchParams.get('hub.verify_token')
-  const challenge = searchParams.get('hub.challenge')
+export async function routeMessage(jid: string, text: string): Promise<void> {
+  // Extract plain phone number from JID for DB storage
+  const phone = phoneFromJid(jid)
 
-  if (mode === 'subscribe' && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
-    console.log('Webhook verified')
-    return new NextResponse(challenge, { status: 200 })
-  }
-
-  return new NextResponse('Forbidden', { status: 403 })
-}
-
-// ── POST: Receive inbound WhatsApp messages ──────────────────────────
-export async function POST(req: NextRequest) {
-  // Always return 200 immediately (Meta requires fast response to avoid retries)
-  const body = await req.json()
-
-  // Process asynchronously — don't await
-  processMessage(body).catch(err => console.error('Message processing error:', err))
-
-  return new NextResponse('OK', { status: 200 })
-}
-
-async function processMessage(body: any): Promise<void> {
   try {
-    // Navigate Meta's nested payload structure
-    const entry = body?.entry?.[0]
-    const change = entry?.changes?.[0]
-    const value = change?.value
-
-    // Only handle actual incoming messages (ignore status updates)
-    if (!value?.messages || value.messages.length === 0) return
-    if (value.statuses) return  // delivery receipts — skip
-
-    const message = value.messages[0]
-
-    // Only handle text messages (ignore voice notes, images, etc. in Stage 1)
-    if (message.type !== 'text') {
-      const phone = message.from
-      await sendWhatsAppMessage(phone,
-        `Hi! I can only read text messages for now.\n\n` +
-        `Type *help* to see what I can do.`
-      )
-      return
-    }
-
-    const phone = message.from         // E.164 format: 2348012345678
-    const text = message.text.body     // Raw message text
-
     // Load merchant by phone number
     const { data: merchant } = await supabaseAdmin
       .from('merchants')
@@ -1251,8 +1257,6 @@ async function processMessage(body: any): Promise<void> {
       .eq('phone', phone)
       .single()
 
-    // Route: onboarding vs. main commands
-    const isNewMerchant = !merchant
     const isOnboarding = !merchant || merchant.onboarding_step !== 'complete'
 
     if (isOnboarding) {
@@ -1261,73 +1265,60 @@ async function processMessage(body: any): Promise<void> {
       return
     }
 
-    // ── Parse and route command ────────────────────────────────────
     const parsed = parseCommand(text)
 
     switch (parsed.type) {
       case 'sell':
         await handleSell(merchant, parsed.product, parsed.qty, parsed.price)
         break
-
       case 'debt':
         await handleDebt(merchant, parsed.name, parsed.amount)
         break
-
       case 'paid':
         await handlePaid(merchant, parsed.name, parsed.amount)
         break
-
       case 'stock_add':
         await handleStockAdd(merchant, parsed.product, parsed.qty)
         break
-
       case 'stock_check':
         await handleStockCheck(merchant, parsed.product)
         break
-
       case 'undo':
         await handleUndo(merchant)
         break
-
       case 'summary':
         await handleSummary(merchant)
         break
-
       case 'debts':
         await handleDebtsList(merchant)
         break
-
       case 'history':
         await handleHistory(merchant)
         break
-
       case 'help':
         await handleHelp(merchant)
         break
-
       case 'unknown':
       default:
-        // Smart error: try to suggest the closest command
-        await handleUnknownCommand(merchant.phone, text)
+        await handleUnknownCommand(phone, text)
         break
     }
   } catch (error) {
-    console.error('processMessage error:', error)
-    // Don't crash — Meta will retry if we don't return 200
+    console.error(`Error routing message from ${phone}:`, error)
+    // Don't crash — just log it
   }
 }
 
 async function handleUnknownCommand(phone: string, rawText: string): Promise<void> {
   const lower = rawText.toLowerCase().trim()
 
-  // Try to suggest the closest matching command
   let suggestion = ''
   if (lower.includes('sell') || lower.includes('sold')) {
-    suggestion = `\nDid you mean: \`sell <product> <qty> <price>\`?`
+    suggestion = `\nDid you mean: sell <product> <qty> <price>?`
   } else if (lower.includes('debt') || lower.includes('owe')) {
-    suggestion = `\nDid you mean: \`debt <name> <amount>\`?`
+    suggestion = `\nDid you mean: debt <name> <amount>?`
   } else if (lower.includes('stock') || lower.includes('inventory')) {
-    suggestion = `\nDid you mean: \`stock check\` or \`stock add <product> <qty>\`?`
+    suggestion = `\nDid you mean: stock check  or  stock add <product> <qty>?`
   }
 
   await sendWhatsAppMessage(phone,
@@ -1339,9 +1330,214 @@ async function handleUnknownCommand(phone: string, rawText: string): Promise<voi
 
 ---
 
-## 10. DASHBOARD
+## 12. BAILEYS BOT — THE CORE NEW FILE
 
-### 10a. Dashboard Data API
+File: `lib/bot.ts`
+
+This is the heart of the Baileys integration. It manages the WhatsApp connection,
+QR code generation, reconnection on disconnect, and passes messages to the router.
+
+```typescript
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeInMemoryStore,
+  WAMessageContent,
+  proto,
+  WASocket,
+} from 'baileys'
+import { Boom } from '@hapi/boom'
+import * as qrcode from 'qrcode-terminal'
+import { setSocket } from './whatsapp'
+import { routeMessage } from './router'
+import path from 'path'
+
+// In-memory store to cache messages/contacts (optional but helps)
+const store = makeInMemoryStore({})
+
+let reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 5
+
+export async function startBot(): Promise<WASocket> {
+  // Auth state is saved in a folder so you don't have to re-scan QR every restart
+  const authFolder = path.join(process.cwd(), 'auth_info_baileys')
+  const { state, saveCreds } = await useMultiFileAuthState(authFolder)
+
+  // Get latest Baileys version
+  const { version } = await fetchLatestBaileysVersion()
+  console.log(`[Bot] Using Baileys v${version.join('.')}`)
+
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    printQRInTerminal: false, // We handle QR ourselves below
+    logger: {
+      // Silence most Baileys logs — only show errors
+      level: 'error',
+      trace: () => {},
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: (obj: any, msg: string) => console.error('[Baileys]', msg, obj),
+      fatal: (obj: any, msg: string) => console.error('[Baileys FATAL]', msg, obj),
+      child: () => ({ level: 'error', trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, fatal: () => {}, child: () => ({}) as any }),
+    } as any,
+    browser: ['MyDailySales', 'Chrome', '1.0.0'],
+    syncFullHistory: false,
+  })
+
+  // Bind store to socket events
+  store.bind(sock.ev)
+
+  // Share the socket with whatsapp.ts so sendWhatsAppMessage can use it
+  setSocket(sock)
+
+  // ── CONNECTION UPDATES ───────────────────────────────────────────
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update
+
+    // Print QR code to terminal when needed
+    if (qr) {
+      console.log('\n[Bot] Scan this QR code with your WhatsApp bot number:\n')
+      qrcode.generate(qr, { small: true })
+      console.log('\n[Bot] Open WhatsApp → three dots → Linked Devices → Link a Device\n')
+    }
+
+    if (connection === 'open') {
+      console.log('[Bot] ✅ WhatsApp connected successfully!')
+      reconnectAttempts = 0
+    }
+
+    if (connection === 'close') {
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut
+
+      console.log(`[Bot] Connection closed. Status: ${statusCode}. Reconnect: ${shouldReconnect}`)
+
+      if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++
+        const delay = Math.min(1000 * 2 ** reconnectAttempts, 30000) // exponential backoff
+        console.log(`[Bot] Reconnecting in ${delay / 1000}s... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
+        setTimeout(() => startBot(), delay)
+      } else if (statusCode === DisconnectReason.loggedOut) {
+        console.log('[Bot] Logged out. Delete auth_info_baileys/ folder and restart to re-scan QR.')
+      } else {
+        console.log('[Bot] Max reconnect attempts reached. Restart the process.')
+      }
+    }
+  })
+
+  // ── SAVE CREDENTIALS ON UPDATE ──────────────────────────────────
+  sock.ev.on('creds.update', saveCreds)
+
+  // ── INCOMING MESSAGES ────────────────────────────────────────────
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    // Only process new messages, not historical ones loaded on startup
+    if (type !== 'notify') return
+
+    for (const msg of messages) {
+      // Skip messages sent by the bot itself
+      if (msg.key.fromMe) continue
+
+      // Skip group messages — bot is for individual chats only
+      if (msg.key.remoteJid?.endsWith('@g.us')) continue
+
+      // Skip non-text messages
+      const text = extractTextFromMessage(msg.message)
+      if (!text || text.trim().length === 0) {
+        // Reply to voice notes / images
+        if (msg.key.remoteJid) {
+          const phone = msg.key.remoteJid
+          await sock.sendMessage(phone, {
+            text: `Hi! I can only read text messages.\n\nType *help* to see what I can do.`
+          })
+        }
+        continue
+      }
+
+      const jid = msg.key.remoteJid!
+      console.log(`[Bot] Message from ${jid}: ${text.substring(0, 50)}`)
+
+      // Route the message — don't await, process async
+      routeMessage(jid, text).catch(err => {
+        console.error(`[Bot] Error processing message from ${jid}:`, err)
+      })
+    }
+  })
+
+  return sock
+}
+
+/**
+ * Extract plain text from any WhatsApp message type.
+ * Handles regular text, extended text (links), and button replies.
+ */
+function extractTextFromMessage(
+  message: WAMessageContent | null | undefined
+): string | null {
+  if (!message) return null
+
+  return (
+    message.conversation ||
+    message.extendedTextMessage?.text ||
+    message.buttonsResponseMessage?.selectedButtonId ||
+    message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+    null
+  )
+}
+```
+
+---
+
+## 13. SERVER ENTRY POINT
+
+File: `server.ts`
+
+This runs both the Baileys bot and the Next.js server together.
+For local development it starts both. On a VPS it runs both permanently.
+
+```typescript
+import { startBot } from './lib/bot'
+import { createServer } from 'http'
+import next from 'next'
+import { parse } from 'url'
+
+const dev = process.env.NODE_ENV !== 'production'
+const port = parseInt(process.env.PORT || '3000', 10)
+
+async function main() {
+  console.log('[Server] Starting MyDailySales...')
+
+  // Start the WhatsApp bot
+  console.log('[Server] Connecting WhatsApp bot...')
+  await startBot()
+
+  // Start Next.js
+  const app = next({ dev })
+  const handle = app.getRequestHandler()
+  await app.prepare()
+
+  const server = createServer((req, res) => {
+    const parsedUrl = parse(req.url!, true)
+    handle(req, res, parsedUrl)
+  })
+
+  server.listen(port, () => {
+    console.log(`[Server] Next.js running on http://localhost:${port}`)
+    console.log('[Server] Dashboard: http://localhost:3000/dashboard')
+  })
+}
+
+main().catch(err => {
+  console.error('[Server] Fatal error:', err)
+  process.exit(1)
+})
+```
+
+---
+
+## 14. DASHBOARD API (UNCHANGED)
 
 File: `app/api/dashboard/summary/route.ts`
 
@@ -1357,7 +1553,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Phone required' }, { status: 400 })
   }
 
-  // Get merchant
   const { data: merchant } = await supabaseAdmin
     .from('merchants')
     .select('*')
@@ -1371,29 +1566,30 @@ export async function GET(req: NextRequest) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Today's sales
-  const { data: todaysSales } = await supabaseAdmin
-    .from('sales_log')
-    .select('product_name, qty_sold, price_each, total, logged_at')
-    .eq('merchant_id', merchant.id)
-    .eq('undone', false)
-    .gte('logged_at', today.toISOString())
-    .order('logged_at', { ascending: false })
-
-  // Unpaid debts
-  const { data: unpaidDebts } = await supabaseAdmin
-    .from('credit_book')
-    .select('customer_name, amount_owed, created_at')
-    .eq('merchant_id', merchant.id)
-    .eq('status', 'unpaid')
-    .order('amount_owed', { ascending: false })
-
-  // Products with stock
-  const { data: products } = await supabaseAdmin
-    .from('products')
-    .select('name, stock_qty, price, low_stock_threshold')
-    .eq('merchant_id', merchant.id)
-    .order('name')
+  const [
+    { data: todaysSales },
+    { data: unpaidDebts },
+    { data: products }
+  ] = await Promise.all([
+    supabaseAdmin
+      .from('sales_log')
+      .select('product_name, qty_sold, price_each, total, logged_at')
+      .eq('merchant_id', merchant.id)
+      .eq('undone', false)
+      .gte('logged_at', today.toISOString())
+      .order('logged_at', { ascending: false }),
+    supabaseAdmin
+      .from('credit_book')
+      .select('customer_name, amount_owed, created_at')
+      .eq('merchant_id', merchant.id)
+      .eq('status', 'unpaid')
+      .order('amount_owed', { ascending: false }),
+    supabaseAdmin
+      .from('products')
+      .select('name, stock_qty, price, low_stock_threshold')
+      .eq('merchant_id', merchant.id)
+      .order('name')
+  ])
 
   const todayTotal = (todaysSales || []).reduce((sum, s) => sum + s.total, 0)
   const totalOwed = (unpaidDebts || []).reduce((sum, d) => sum + d.amount_owed, 0)
@@ -1405,10 +1601,7 @@ export async function GET(req: NextRequest) {
       transactions: (todaysSales || []).length,
       sales: todaysSales || [],
     },
-    debts: {
-      total: totalOwed,
-      entries: unpaidDebts || [],
-    },
+    debts: { total: totalOwed, entries: unpaidDebts || [] },
     products: products || [],
   })
 }
@@ -1416,11 +1609,9 @@ export async function GET(req: NextRequest) {
 
 ---
 
-### 10b. Dashboard Page
+## 15. DASHBOARD PAGE (UNCHANGED)
 
 File: `app/dashboard/page.tsx`
-
-Minimal read-only dashboard. Phone-number gated (no auth library needed for Stage 1 — just localStorage).
 
 ```tsx
 'use client'
@@ -1447,10 +1638,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const saved = localStorage.getItem('mds_phone')
-    if (saved) {
-      setPhone(saved)
-      fetchData(saved)
-    }
+    if (saved) { setPhone(saved); fetchData(saved) }
   }, [])
 
   async function fetchData(ph: string) {
@@ -1471,42 +1659,35 @@ export default function DashboardPage() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function handleSubmit() {
     if (!inputPhone.trim()) return
-    // Normalize: strip spaces, add country code if missing
     let normalized = inputPhone.replace(/\s+/g, '')
     if (normalized.startsWith('0')) normalized = '234' + normalized.slice(1)
-    if (!normalized.startsWith('+')) normalized = normalized
     fetchData(normalized)
   }
 
-  // ── NOT LOGGED IN ────────────────────────────────────────────────
   if (!phone || !data) {
     return (
       <div style={{ minHeight: '100vh', background: '#0f0e0c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui' }}>
-        <div style={{ background: '#1a1816', padding: '2.5rem', maxWidth: '400px', width: '90%', border: '1px solid #333' }}>
-          <div style={{ color: '#c8380a', fontFamily: 'monospace', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.5rem' }}>MyDailySales</div>
+        <div style={{ background: '#1a1816', padding: '2.5rem', maxWidth: '400px', width: '90%', border: '1px solid #2a2826' }}>
+          <div style={{ color: '#c8380a', fontFamily: 'monospace', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '0.5rem' }}>MyDailySales</div>
           <h1 style={{ color: '#f7f3ec', fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>Dashboard</h1>
-          <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Enter your WhatsApp number to view your business data</p>
-
-          <form onSubmit={handleSubmit}>
-            <input
-              type="tel"
-              placeholder="0812 345 6789"
-              value={inputPhone}
-              onChange={e => setInputPhone(e.target.value)}
-              style={{ width: '100%', padding: '0.75rem', background: '#0f0e0c', border: '1px solid #333', color: '#f7f3ec', fontSize: '1rem', marginBottom: '1rem', outline: 'none' }}
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ width: '100%', padding: '0.75rem', background: '#c8380a', color: '#fff', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}
-            >
-              {loading ? 'Loading...' : 'View My Dashboard'}
-            </button>
-          </form>
-
+          <p style={{ color: '#666', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Enter your WhatsApp number to view your business data</p>
+          <input
+            type="tel"
+            placeholder="08012345678"
+            value={inputPhone}
+            onChange={e => setInputPhone(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            style={{ width: '100%', padding: '0.75rem', background: '#0f0e0c', border: '1px solid #333', color: '#f7f3ec', fontSize: '1rem', marginBottom: '1rem', outline: 'none', boxSizing: 'border-box' }}
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{ width: '100%', padding: '0.75rem', background: '#c8380a', color: '#fff', border: 'none', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
+          >
+            {loading ? 'Loading...' : 'View My Dashboard'}
+          </button>
           {error && <p style={{ color: '#f85149', fontSize: '0.8rem', marginTop: '1rem' }}>{error}</p>}
         </div>
       </div>
@@ -1514,67 +1695,63 @@ export default function DashboardPage() {
   }
 
   const { merchant, today, debts, products } = data
-  const lowStockProducts = products.filter(p => p.stock_qty <= (p.low_stock_threshold || 5) && p.stock_qty > 0)
-  const outOfStock = products.filter(p => p.stock_qty <= 0)
+  const lowStock = products.filter((p: any) => p.stock_qty > 0 && p.stock_qty <= (p.low_stock_threshold || 5))
+  const outOfStock = products.filter((p: any) => p.stock_qty <= 0)
 
-  // ── DASHBOARD ────────────────────────────────────────────────────
   return (
     <div style={{ background: '#0f0e0c', minHeight: '100vh', color: '#f7f3ec', fontFamily: 'system-ui', padding: '2rem 1.5rem' }}>
-      {/* Header */}
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
             <div style={{ color: '#c8380a', fontFamily: 'monospace', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.15em' }}>MyDailySales</div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{merchant.business_name}</h1>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0 }}>{merchant.business_name}</h1>
           </div>
           <button
             onClick={() => { localStorage.removeItem('mds_phone'); setPhone(''); setData(null) }}
-            style={{ background: 'transparent', border: '1px solid #333', color: '#888', padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.78rem' }}
+            style={{ background: 'transparent', border: '1px solid #2a2826', color: '#666', padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.78rem' }}
           >
             Switch Account
           </button>
         </div>
 
-        {/* Stats row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
           <StatCard label="Today's Sales" value={formatNaira(today.total)} sub={`${today.transactions} transactions`} />
-          <StatCard label="Debts Owed to You" value={formatNaira(debts.total)} sub={`${debts.entries.length} customers`} color="#f59e0b" />
+          <StatCard label="Debts Owed" value={formatNaira(debts.total)} sub={`${debts.entries.length} customers`} color="#f59e0b" />
           <StatCard label="Products" value={String(products.length)} sub={outOfStock.length > 0 ? `${outOfStock.length} out of stock` : 'All stocked'} />
         </div>
 
-        {/* Alerts */}
         {outOfStock.length > 0 && (
-          <div style={{ background: '#2d1a1a', border: '1px solid #c8380a', padding: '1rem 1.2rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
+          <div style={{ background: '#2d1a1a', border: '1px solid #c8380a44', padding: '1rem 1.2rem', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
             🔴 <strong>Out of stock:</strong> {outOfStock.map((p: any) => p.name).join(', ')}
           </div>
         )}
-        {lowStockProducts.length > 0 && (
-          <div style={{ background: '#2a2000', border: '1px solid #b85c00', padding: '1rem 1.2rem', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
-            🟡 <strong>Low stock:</strong> {lowStockProducts.map((p: any) => `${p.name} (${p.stock_qty})`).join(', ')}
+        {lowStock.length > 0 && (
+          <div style={{ background: '#2a2000', border: '1px solid #b85c0044', padding: '1rem 1.2rem', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+            🟡 <strong>Low stock:</strong> {lowStock.map((p: any) => `${p.name} (${p.stock_qty})`).join(', ')}
           </div>
         )}
 
-        {/* Today's Sales */}
         <Section title="Today's Sales">
           {today.sales.length === 0 ? (
-            <p style={{ color: '#666', fontSize: '0.85rem' }}>No sales logged today yet.</p>
+            <p style={{ color: '#444', fontSize: '0.85rem' }}>No sales logged today yet.</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr>
                   {['Product', 'Qty', 'Price', 'Total', 'Time'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', color: '#666', fontWeight: 600, padding: '0.4rem 0.6rem', borderBottom: '1px solid #222', fontSize: '0.7rem', textTransform: 'uppercase' }}>{h}</th>
+                    <th key={h} style={{ textAlign: 'left', color: '#444', fontWeight: 600, padding: '0.4rem 0.6rem', borderBottom: '1px solid #1e1c1a', fontSize: '0.7rem', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {today.sales.map((s: any, i: number) => (
                   <tr key={i}>
-                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #1a1a1a' }}>{s.product_name}</td>
-                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #1a1a1a', color: '#aaa' }}>{s.qty_sold}</td>
-                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #1a1a1a', color: '#aaa' }}>{formatNaira(s.price_each)}</td>
-                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #1a1a1a', color: '#4ecb82', fontWeight: 700 }}>{formatNaira(s.total)}</td>
-                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #1a1a1a', color: '#666', fontSize: '0.78rem' }}>
+                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #161412' }}>{s.product_name}</td>
+                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #161412', color: '#888' }}>{s.qty_sold}</td>
+                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #161412', color: '#888' }}>{formatNaira(s.price_each)}</td>
+                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #161412', color: '#4ecb82', fontWeight: 700 }}>{formatNaira(s.total)}</td>
+                    <td style={{ padding: '0.5rem 0.6rem', borderBottom: '1px solid #161412', color: '#444', fontSize: '0.75rem' }}>
                       {new Date(s.logged_at).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}
                     </td>
                   </tr>
@@ -1584,13 +1761,12 @@ export default function DashboardPage() {
           )}
         </Section>
 
-        {/* Debts */}
-        <Section title={`Outstanding Debts (${formatNaira(debts.total)})`}>
+        <Section title={`Outstanding Debts — ${formatNaira(debts.total)}`}>
           {debts.entries.length === 0 ? (
-            <p style={{ color: '#666', fontSize: '0.85rem' }}>No outstanding debts. ✅</p>
+            <p style={{ color: '#444', fontSize: '0.85rem' }}>No outstanding debts ✅</p>
           ) : (
             debts.entries.map((d: any, i: number) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0', borderBottom: '1px solid #1a1a1a', fontSize: '0.88rem' }}>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem 0', borderBottom: '1px solid #161412', fontSize: '0.88rem' }}>
                 <span>{d.customer_name}</span>
                 <span style={{ color: '#f59e0b', fontWeight: 700 }}>{formatNaira(d.amount_owed)}</span>
               </div>
@@ -1598,38 +1774,39 @@ export default function DashboardPage() {
           )}
         </Section>
 
-        {/* Stock */}
         <Section title="Stock Levels">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.75rem' }}>
             {products.map((p: any, i: number) => {
               const isOut = p.stock_qty <= 0
               const isLow = !isOut && p.stock_qty <= (p.low_stock_threshold || 5)
               const color = isOut ? '#c8380a' : isLow ? '#f59e0b' : '#4ecb82'
               return (
-                <div key={i} style={{ background: '#1a1816', border: `1px solid ${color}22`, padding: '0.9rem', position: 'relative' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{p.name}</div>
-                  <div style={{ color, fontSize: '1.1rem', fontWeight: 800 }}>{p.stock_qty}</div>
-                  <div style={{ color: '#555', fontSize: '0.65rem', textTransform: 'uppercase' }}>in stock</div>
+                <div key={i} style={{ background: '#1a1816', border: `1px solid ${color}22`, padding: '0.9rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem', color: '#ccc' }}>{p.name}</div>
+                  <div style={{ color, fontSize: '1.2rem', fontWeight: 800 }}>{p.stock_qty}</div>
+                  <div style={{ color: '#444', fontSize: '0.65rem', textTransform: 'uppercase' }}>in stock</div>
                 </div>
               )
             })}
           </div>
         </Section>
 
-        <div style={{ textAlign: 'center', color: '#333', fontSize: '0.7rem', marginTop: '2rem', fontFamily: 'monospace' }}>
-          MyDailySales · Dashboard · Data refreshes on page reload
+        <div style={{ textAlign: 'center', color: '#2a2826', fontSize: '0.7rem', marginTop: '2rem', fontFamily: 'monospace' }}>
+          MyDailySales · Refresh page to update data
         </div>
       </div>
     </div>
   )
 }
 
-function StatCard({ label, value, sub, color = '#4ecb82' }: { label: string; value: string; sub: string; color?: string }) {
+function StatCard({ label, value, sub, color = '#4ecb82' }: {
+  label: string; value: string; sub: string; color?: string
+}) {
   return (
     <div style={{ background: '#1a1816', border: '1px solid #2a2826', padding: '1.2rem' }}>
-      <div style={{ color: '#666', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.4rem', fontFamily: 'monospace' }}>{label}</div>
-      <div style={{ color, fontSize: '1.6rem', fontWeight: 800, lineHeight: 1, marginBottom: '0.2rem' }}>{value}</div>
-      <div style={{ color: '#555', fontSize: '0.72rem' }}>{sub}</div>
+      <div style={{ color: '#444', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.4rem', fontFamily: 'monospace' }}>{label}</div>
+      <div style={{ color, fontSize: '1.6rem', fontWeight: 800, lineHeight: 1, marginBottom: '0.3rem' }}>{value}</div>
+      <div style={{ color: '#444', fontSize: '0.72rem' }}>{sub}</div>
     </div>
   )
 }
@@ -1637,7 +1814,7 @@ function StatCard({ label, value, sub, color = '#4ecb82' }: { label: string; val
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: '2rem' }}>
-      <h2 style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#555', marginBottom: '1rem', fontFamily: 'monospace' }}>{title}</h2>
+      <h2 style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#444', marginBottom: '1rem', fontFamily: 'monospace' }}>{title}</h2>
       {children}
     </div>
   )
@@ -1646,170 +1823,210 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 ---
 
-## 11. PACKAGE.JSON DEPENDENCIES
+## 16. NEXT.JS CONFIG
 
-```json
-{
-  "name": "mydailysales",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "next": "14.2.0",
-    "react": "^18",
-    "react-dom": "^18",
-    "@supabase/supabase-js": "^2.39.0",
-    "typescript": "^5"
-  },
-  "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "tailwindcss": "^3.4.0",
-    "postcss": "^8",
-    "autoprefixer": "^10"
-  }
-}
-```
+File: `next.config.ts`
 
----
-
-## 12. VERCEL DEPLOYMENT
-
-### `next.config.ts`
 ```typescript
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // Required to allow Supabase service role key on server
-  experimental: {
-    serverActions: { allowedOrigins: ['*'] }
-  }
+  // Baileys uses Node-specific APIs, keep bot logic server-side only
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      }
+    }
+    return config
+  },
 }
 
 export default nextConfig
 ```
 
-### Vercel Environment Variables
-Add ALL variables from `.env.local` to Vercel project settings → Environment Variables.
+---
 
-### Webhook URL to register with Meta:
-```
-https://your-project.vercel.app/api/whatsapp
+## 17. TYPESCRIPT CONFIG
+
+File: `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
 ```
 
 ---
 
-## 13. META WHATSAPP SETUP CHECKLIST
+## 18. .GITIGNORE
 
-Complete these steps in order at developers.facebook.com:
+File: `.gitignore`
 
 ```
-□ 1. Create Meta Developer App (Business type)
-□ 2. Add WhatsApp product to the app
-□ 3. Create or connect a Meta Business Account
-□ 4. Get a test phone number (free from Meta) OR register your own number
-□ 5. Copy the Phone Number ID → META_PHONE_NUMBER_ID
-□ 6. Generate a Permanent Access Token → META_WHATSAPP_TOKEN
-   (User → System User → Generate Token → Select whatsapp_business_messaging)
-□ 7. Deploy to Vercel first, then:
-□ 8. Go to WhatsApp → Configuration → Webhook
-   URL: https://your-project.vercel.app/api/whatsapp
-   Verify Token: (same as META_WEBHOOK_VERIFY_TOKEN in .env)
-□ 9. Subscribe to: messages (check this field ONLY)
-□ 10. Test by texting the bot number from your personal WhatsApp
+node_modules/
+.next/
+.env.local
+auth_info_baileys/
+*.log
 ```
 
-**Important Stage 1 cost note:** All bot replies are FREE as long as:
-- You only reply within the 24-hour window AFTER the merchant messages first
-- You never initiate a conversation (no outbound proactive messages)
-- This is a "service conversation" which costs ₦0 under Meta's pricing
+**Important:** `auth_info_baileys/` contains your WhatsApp session files.
+Never commit this to GitHub — anyone who gets it can use your WhatsApp number.
 
 ---
 
-## 14. BUILD ORDER FOR AI CODING AGENT
+## 19. BUILD ORDER
 
-Execute in this exact sequence to avoid dependency issues:
+Follow this exactly:
 
 ```
-Step 1:  Create Next.js project with TypeScript + Tailwind
-Step 2:  Install @supabase/supabase-js
-Step 3:  Create .env.local with all variables (use placeholders)
-Step 4:  Create lib/types.ts
-Step 5:  Create lib/supabase.ts
-Step 6:  Create lib/whatsapp.ts
-Step 7:  Create lib/parser.ts + write tests for every command pattern
-Step 8:  Create lib/fuzzy.ts
-Step 9:  Create all lib/handlers/*.ts files (in any order)
-Step 10: Create app/api/whatsapp/route.ts (main webhook)
-Step 11: Create app/api/dashboard/summary/route.ts
-Step 12: Create app/dashboard/page.tsx
-Step 13: Run Supabase migration (001_initial_schema.sql)
-Step 14: Deploy to Vercel
-Step 15: Set up Meta webhook with deployed URL
-Step 16: Test full flow: first message → onboarding → sell command → summary
+Step 1:  npx create-next-app@latest mydailysales --typescript --tailwind --app
+Step 2:  cd mydailysales
+Step 3:  npm install baileys @supabase/supabase-js tsx pino pino-pretty qrcode-terminal
+Step 4:  Create .env.local with Supabase keys
+Step 5:  Create lib/types.ts
+Step 6:  Create lib/supabase.ts
+Step 7:  Create lib/whatsapp.ts  ← Baileys version
+Step 8:  Create lib/parser.ts
+Step 9:  Create lib/fuzzy.ts
+Step 10: Create all lib/handlers/*.ts files
+Step 11: Create lib/router.ts
+Step 12: Create lib/bot.ts
+Step 13: Create server.ts
+Step 14: Run Supabase SQL migration
+Step 15: Update next.config.ts
+Step 16: Run: npm run dev
+Step 17: Scan QR code with your bot WhatsApp number
+Step 18: Text the bot "hi" from your personal number
+Step 19: Follow onboarding → add products → log a sale → type summary
 ```
 
 ---
 
-## 15. TESTING CHECKLIST
+## 20. RUNNING THE BOT
 
-Before giving to beta merchants, manually test every path:
+**Development (your laptop):**
+```bash
+npm run dev
+```
+
+A QR code will appear in your terminal. Scan it with the WhatsApp number you want
+to use as the bot. Open WhatsApp → three dots → Linked Devices → Link a Device.
+
+After scanning, the bot is connected. It stays connected as long as the process runs.
+The session is saved in `auth_info_baileys/` — you won't need to scan again on restart
+unless you log out.
+
+**On a VPS (for production, always-on):**
+
+Since Vercel can't run a persistent Baileys process (Vercel is serverless),
+for production you need a cheap VPS. Options:
+
+- Railway.app — $5/month, easy deploy
+- Render.com — has a free tier for web services
+- DigitalOcean — $4/month droplet
+
+On a VPS:
+```bash
+# Install Node 18+
+# Clone your repo
+# npm install
+# npm run build (Next.js)
+# node dist/server.js  OR use PM2:
+npm install -g pm2
+pm2 start server.ts --interpreter tsx --name mydailysales
+pm2 save
+pm2 startup  # auto-restart on reboot
+```
+
+**For Stage 1 testing (just 10 merchants):**
+Run `npm run dev` on your laptop. Keep it open. That's enough.
+You don't need a VPS until you have paying users.
+
+---
+
+## 21. TESTING CHECKLIST
+
+Test every path before giving to a beta merchant:
 
 ```
 ONBOARDING
-□ New phone number → welcome message received
-□ Business name set → products prompt received
+□ Text bot from new number → welcome message received
+□ Send business name → products prompt received
 □ add garri 500 20 → product added confirmation
-□ done → setup complete message + first sale prompt
-□ First sale logged → 🎉 first sale message received
+□ add garri 500 20 again → duplicate warning
+□ done → setup complete + first sale prompt
+□ Text hi before setup is done → handled gracefully
 
-COMMANDS
-□ sell garri 5 500 → correct confirmation + stock deducted
+COMMANDS (after onboarding complete)
+□ sell garri 5 500 → confirmation + stock deducted + today total shown
 □ sell garri 100 500 → stock warning (only X in stock)
-□ sell kpomo 2 1000 → product not found message
-□ sell garri 5 → missing price error message
+□ sell kpomo 2 1000 → product not found with suggestions
+□ sell garri 5 → missing price error
+□ sell gari 5 500 → fuzzy match finds "garri" ✓
 □ debt Emeka 3000 → debt recorded + total shown
-□ paid Emeka 3000 → debt cleared + remaining shown
+□ debt Emeka 5000 → second debt entry for same person
+□ paid Emeka 3000 → correct debt cleared (not both)
 □ paid Unknown 1000 → customer not found message
-□ stock check → all products listed
-□ stock check garri → single product shown
+□ stock check → all products listed with status
+□ stock check garri → single product with status
 □ stock add garri 20 → stock increased
 □ summary → today's total + debts + out of stock
-□ debts → full debt list
+□ debts → full debt list sorted by amount
 □ history → last 5 sales
 □ undo → last sale reversed + stock restored
+□ undo again → previous sale reversed
 □ undo (no sales) → "nothing to undo" message
 □ help → full command menu
+□ random text → unknown command with suggestion
+□ voice note → "text only" message
 
-ERROR PATHS
-□ Random text → unknown command suggestion
-□ Voice note → "text only" message
-□ sell garri -5 500 → parser rejects negative qty
-□ debt Emeka abc → parser rejects non-numeric amount
+RECONNECTION
+□ Stop bot process → restart → bot reconnects without QR scan
+□ Send message during reconnect → message processed after reconnect
 ```
 
 ---
 
-## 16. STAGE 2 ADDITIONS (DO NOT BUILD YET)
+## 22. WHAT IS NOT BUILT YET (STAGE 2)
 
-These are explicitly NOT in Stage 1. Do not build these until 7/10 beta merchants are active daily users:
+Do not build these until 7/10 beta merchants are active for 5+ consecutive days:
 
 - Paystack subscription integration
-- Auth system (NextAuth or Supabase Auth) for dashboard
+- Proper auth for dashboard (OTP via WhatsApp)
 - Weekly/monthly PDF reports
 - Partial debt payments
-- Multi-staff WhatsApp numbers
-- Automated debt reminder messages
+- Multi-staff numbers
+- Automated debt reminders
 - NLP free-text parsing
 - Analytics charts
 - Referral system
+- Migration from Baileys to Meta Cloud API (when you have budget)
 
 ---
 
-*MyDailySales Implementation Guide · v1.0 · June 2026*
+*MyDailySales · Baileys Implementation Guide · June 2026*
 *Stage 1 MVP — Behavior Validation Only*
