@@ -13,22 +13,30 @@ import { handleDebtsList } from './handlers/debts'
 import { handleHelp } from './handlers/help'
 
 export async function routeMessage(jid: string, text: string): Promise<void> {
-  // Extract plain phone number from JID for DB storage
   const phone = phoneFromJid(jid)
 
   try {
-    // Load merchant by phone number
+    // Load merchant using either the full JID or the plain phone number
     const { data: merchant } = await supabaseAdmin
       .from('merchants')
       .select('*')
-      .eq('phone', phone)
+      .or(`phone.eq.${jid},phone.eq.${phone}`)
       .maybeSingle()
+
+    // Self-healing: if merchant has the legacy plain phone format in DB, update to full JID
+    if (merchant && merchant.phone === phone) {
+      await supabaseAdmin
+        .from('merchants')
+        .update({ phone: jid })
+        .eq('id', merchant.id)
+      merchant.phone = jid
+    }
 
     const isOnboarding = !merchant || merchant.onboarding_step !== 'complete'
 
     if (isOnboarding) {
       const parsed = parseCommand(text)
-      await handleOnboarding(merchant, phone, text, parsed)
+      await handleOnboarding(merchant, jid, text, parsed)
       return
     }
 
@@ -67,16 +75,16 @@ export async function routeMessage(jid: string, text: string): Promise<void> {
         break
       case 'unknown':
       default:
-        await handleUnknownCommand(phone, text)
+        await handleUnknownCommand(jid, text)
         break
     }
   } catch (error) {
-    console.error(`Error routing message from ${phone}:`, error)
+    console.error(`Error routing message from ${jid}:`, error)
     // Don't crash — just log it
   }
 }
 
-async function handleUnknownCommand(phone: string, rawText: string): Promise<void> {
+async function handleUnknownCommand(jid: string, rawText: string): Promise<void> {
   const lower = rawText.toLowerCase().trim()
 
   let suggestion = ''
@@ -88,7 +96,7 @@ async function handleUnknownCommand(phone: string, rawText: string): Promise<voi
     suggestion = `\nDid you mean: stock check  or  stock add <product> <qty>?`
   }
 
-  await sendWhatsAppMessage(phone,
+  await sendWhatsAppMessage(jid,
     `❓ I didn't understand: _"${rawText.substring(0, 50)}"_${suggestion}\n\n` +
     `Type *help* to see all commands with examples.`
   )
