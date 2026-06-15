@@ -46,6 +46,7 @@ export async function startBot(): Promise<WASocket> {
     } as any,
     browser: Browsers.macOS('Desktop'),
     syncFullHistory: false,
+    defaultQueryTimeoutMs: 60000,
   })
 
   // Bind store to socket events
