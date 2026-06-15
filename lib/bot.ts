@@ -101,6 +101,7 @@ export async function startBot(): Promise<WASocket> {
 
     for (const msg of messages) {
       console.log(`[Bot] msg details: fromMe=${msg.key.fromMe}, remoteJid=${msg.key.remoteJid}, hasMessage=${!!msg.message}`)
+      console.log(`[Bot] full msg object:`, JSON.stringify(msg, null, 2))
       // Skip messages sent by the bot itself
       if (msg.key.fromMe) continue
 
