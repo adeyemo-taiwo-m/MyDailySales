@@ -103,6 +103,7 @@ export async function startBot(): Promise<WASocket> {
 
       // Skip group messages — bot is for individual chats only
       if (msg.key.remoteJid?.endsWith('@g.us')) continue
+      if (!msg.key.remoteJid?.endsWith('@s.whatsapp.net')) continue
 
       // Skip non-text messages
       const text = extractTextFromMessage(msg.message)
