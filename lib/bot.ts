@@ -100,6 +100,7 @@ export async function startBot(): Promise<WASocket> {
     if (type !== 'notify') return
 
     for (const msg of messages) {
+      console.log(`[Bot] msg details: fromMe=${msg.key.fromMe}, remoteJid=${msg.key.remoteJid}, hasMessage=${!!msg.message}`)
       // Skip messages sent by the bot itself
       if (msg.key.fromMe) continue
 
@@ -109,6 +110,7 @@ export async function startBot(): Promise<WASocket> {
 
       // Skip non-text messages
       const text = extractTextFromMessage(msg.message)
+      console.log(`[Bot] extracted text: "${text}"`)
       if (!text || text.trim().length === 0) {
         // Reply to voice notes / images
         if (msg.key.remoteJid) {
