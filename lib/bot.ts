@@ -95,6 +95,7 @@ export async function startBot(): Promise<WASocket> {
 
   // ── INCOMING MESSAGES ────────────────────────────────────────────
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    console.log(`[Bot] messages.upsert event: type=${type}, count=${messages.length}`)
     // Only process new messages, not historical ones loaded on startup
     if (type !== 'notify') return
 
