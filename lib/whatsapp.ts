@@ -25,7 +25,14 @@ export async function sendWhatsAppMessage(to: string, message: string): Promise<
   }
 
   // Ensure correct JID format
-  const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`
+  let jid = to
+  if (!to.includes('@')) {
+    if (to.startsWith('40') && to.length >= 13) {
+      jid = `${to}@lid`
+    } else {
+      jid = `${to}@s.whatsapp.net`
+    }
+  }
 
   try {
     await _socket.sendMessage(jid, { text: message })
