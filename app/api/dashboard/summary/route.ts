@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getSocket, phoneFromJid } from '@/lib/whatsapp'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -9,11 +10,36 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Phone required' }, { status: 400 })
   }
 
+  const searchPhones = [phone]
+  const normalized = phone.replace(/\D/g, '')
+  if (normalized && !searchPhones.includes(normalized)) {
+    searchPhones.push(normalized)
+  }
+
+  // Try to resolve JID via WhatsApp bot
+  const sock = getSocket()
+  if (sock) {
+    try {
+      const [result] = await sock.onWhatsApp(phone)
+      if (result && result.exists) {
+        searchPhones.push(result.jid)
+        const plain = phoneFromJid(result.jid)
+        if (!searchPhones.includes(plain)) {
+          searchPhones.push(plain)
+        }
+      }
+    } catch (err) {
+      console.error('[API] failed to resolve JID via WhatsApp:', err)
+    }
+  }
+
+  const orFilter = searchPhones.map(p => `phone.eq.${p}`).join(',')
+
   // Get merchant
   const { data: merchant } = await supabaseAdmin
     .from('merchants')
     .select('*')
-    .eq('phone', phone)
+    .or(orFilter)
     .maybeSingle()
 
   if (!merchant) {
@@ -51,7 +77,7 @@ export async function GET(req: NextRequest) {
   const totalOwed = (unpaidDebts || []).reduce((sum, d) => sum + Number(d.amount_owed || 0), 0)
 
   return NextResponse.json({
-    merchant: { business_name: merchant.business_name, phone: merchant.phone },
+    merchant: { business_name: merchant.business_name, phone: phoneFromJid(merchant.phone) },
     today: {
       total: todayTotal,
       transactions: (todaysSales || []).length,
