@@ -20,12 +20,15 @@ export async function GET(req: NextRequest) {
   const sock = getSocket()
   if (sock) {
     try {
-      const [result] = await sock.onWhatsApp(phone)
-      if (result && result.exists) {
-        searchPhones.push(result.jid)
-        const plain = phoneFromJid(result.jid)
-        if (!searchPhones.includes(plain)) {
-          searchPhones.push(plain)
+      const results = await sock.onWhatsApp(phone)
+      if (results && results.length > 0) {
+        const result = results[0]
+        if (result && result.exists) {
+          searchPhones.push(result.jid)
+          const plain = phoneFromJid(result.jid)
+          if (!searchPhones.includes(plain)) {
+            searchPhones.push(plain)
+          }
         }
       }
     } catch (err) {
