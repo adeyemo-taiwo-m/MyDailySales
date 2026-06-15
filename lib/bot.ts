@@ -6,6 +6,7 @@ import makeWASocket, {
   WAMessageContent,
   proto,
   WASocket,
+  Browsers,
 } from '@whiskeysockets/baileys'
 import { Boom } from '@hapi/boom'
 import * as qrcode from 'qrcode-terminal'
@@ -43,7 +44,7 @@ export async function startBot(): Promise<WASocket> {
       fatal: (obj: any, msg: string) => console.error('[Baileys FATAL]', msg, obj),
       child: () => ({ level: 'error', trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, fatal: () => {}, child: () => ({}) as any }),
     } as any,
-    browser: ['MyDailySales', 'Chrome', '1.0.0'],
+    browser: Browsers.macOS('Desktop'),
     syncFullHistory: false,
   })
 
