@@ -1,81 +1,59 @@
-import type { WASocket } from '@whiskeysockets/baileys'
-
-// Shared socket instance — set once when bot connects
-let _socket: WASocket | null = null
-
-export function setSocket(sock: WASocket): void {
-  _socket = sock
-}
-
-export function getSocket(): WASocket | null {
-  return _socket
-}
+const META_API_VERSION = "v20.0";
+const META_API_URL = `https://graph.facebook.com/${META_API_VERSION}/${process.env.META_PHONE_NUMBER_ID}/messages`;
 
 /**
- * Send a WhatsApp text message via Baileys.
- * 
- * Phone format: Baileys uses JID format: "2348012345678@s.whatsapp.net"
- * The phone number coming from messages is already in this format.
- * For sending to a new number, convert: "08012345678" → "2348012345678@s.whatsapp.net"
+ * Send a WhatsApp text message via the Meta Cloud API.
+ *
+ * Phone format: Meta sends/expects numbers as E.164 digits with no leading "+",
+ * e.g. "2348012345678". Incoming webhook payloads use the same format, so no
+ * JID-style conversion is needed anywhere in the app.
  */
-export async function sendWhatsAppMessage(to: string, message: string): Promise<void> {
-  if (!_socket) {
-    console.error('WhatsApp socket not initialized — cannot send message')
-    return
-  }
-
-  // Ensure correct JID format
-  let jid = to
-  if (!to.includes('@')) {
-    if (to.startsWith('40') && to.length >= 13) {
-      jid = `${to}@lid`
-    } else {
-      jid = `${to}@s.whatsapp.net`
-    }
-  }
-
+export async function sendWhatsAppMessage(
+  to: string,
+  message: string,
+): Promise<void> {
   try {
-    // Show typing presence to simulate human typing
-    try {
-      await _socket.sendPresenceUpdate('composing', jid)
-    } catch (_) {}
+    const res = await fetch(META_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.META_WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "text",
+        text: { body: message, preview_url: false },
+      }),
+    });
 
-    // Wait a brief moment simulating typing speed
-    await new Promise(resolve => setTimeout(resolve, 1200))
-
-    await _socket.sendMessage(jid, { text: message })
-
-    // Stop typing presence
-    try {
-      await _socket.sendPresenceUpdate('paused', jid)
-    } catch (_) {}
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error(
+        `Meta API error (${res.status}) sending to ${to}:`,
+        errBody,
+      );
+      throw new Error(`Meta API responded with ${res.status}`);
+    }
   } catch (error) {
-    console.error(`Failed to send message to ${jid}:`, error)
-    throw error
+    console.error(`Failed to send message to ${to}:`, error);
+    throw error;
   }
 }
 
 // Format naira amounts: 14500 → "₦14,500"
 export function formatNaira(amount: number): string {
-  return `₦${amount.toLocaleString('en-NG')}`
+  return `₦${amount.toLocaleString("en-NG")}`;
 }
 
 /**
- * Extract the plain phone number from a Baileys JID.
- * "2348012345678@s.whatsapp.net" → "2348012345678"
- */
-export function phoneFromJid(jid: string): string {
-  return jid.split('@')[0]
-}
-
-/**
- * Convert a Nigerian number to E.164 format for storage.
+ * Convert a Nigerian number to E.164 format (no leading +) for storage.
  * "08012345678" → "2348012345678"
  * "2348012345678" → "2348012345678" (already correct)
  */
 export function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
-  if (digits.startsWith('0')) return '234' + digits.slice(1)
-  if (digits.startsWith('234')) return digits
-  return digits
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("0")) return "234" + digits.slice(1);
+  if (digits.startsWith("234")) return digits;
+  return digits;
 }
