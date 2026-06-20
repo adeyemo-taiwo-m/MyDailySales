@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
   const mode = searchParams.get("hub.mode");
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
-  const verifyToken = process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN;
+  const verifyToken =
+    process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN;
 
   if (mode === "subscribe" && token === verifyToken) {
     return new NextResponse(challenge, { status: 200 });
@@ -58,13 +59,11 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Webhook] Message from ${from}: ${text.substring(0, 50)}`);
 
-        // Don't await — let Meta get its 200 OK quickly, process in background
-        routeMessage(from, text).catch((err) => {
-          console.error(
-            `[Webhook] Error processing message from ${from}:`,
-            err,
-          );
-        });
+        try {
+          await routeMessage(from, text);
+        } catch (err) {
+          console.error(`[Webhook] Error processing message from ${from}:`, err);
+        }
       }
     }
   } catch (error) {
