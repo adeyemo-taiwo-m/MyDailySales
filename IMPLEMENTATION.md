@@ -2287,7 +2287,7 @@ Step 13: Create lib/router.ts
 Step 14: Create app/api/whatsapp/route.ts
 Step 15: Run the Supabase SQL migration
 Step 16: Run: npm run dev — then in a second terminal: ngrok http 3000
-Step 17: In Meta App Dashboard → WhatsApp → Configuration, set the Callback URL to
+Step 17: In Meta App Dashboard → WhatsApp → Configuration, sthis et the Callback URL to
          your ngrok HTTPS URL + /api/whatsapp, and the Verify Token to match
          META_VERIFY_TOKEN
 Step 18: Click "Verify and Save" — subscribe to the "messages" webhook field

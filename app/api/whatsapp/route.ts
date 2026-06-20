@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = JSON.parse(rawBody);
-
+  console.log("[Webhook] FULL PAYLOAD:", JSON.stringify(body));
   try {
     const entry = body.entry?.[0];
     const change = entry?.changes?.[0];
@@ -62,7 +62,10 @@ export async function POST(req: NextRequest) {
         try {
           await routeMessage(from, text);
         } catch (err) {
-          console.error(`[Webhook] Error processing message from ${from}:`, err);
+          console.error(
+            `[Webhook] Error processing message from ${from}:`,
+            err,
+          );
         }
       }
     }
