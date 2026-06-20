@@ -12,7 +12,7 @@ Instead of downloading complex applications or using slow, offline ledger books,
 - **Robust Fuzzy Matching**: Forgives spelling mistakes when typing product or customer names (e.g., typing "gari" matches "garri").
 - **Intelligent Debt Ledger**: Tracks outstanding customer balances, handles payouts, and prevents double-clearing of matching entries.
 - **Real-Time Web Dashboard**: A minimalistic, high-performance dashboard showing today's summaries, out-of-stock items, and credit lists.
-- **Self-Hosted Baileys Integration**: Uses the WhatsApp Web WebSocket protocol (`baileys`) to run the bot on any WhatsApp number without Meta API fees.
+- **Official Meta Cloud API**: Integrates directly with Meta's official WhatsApp Business Platform Graph API via secure serverless webhooks, eliminating local credential files and WebSocket connection bottlenecks.
 
 ---
 
@@ -20,15 +20,22 @@ Instead of downloading complex applications or using slow, offline ledger books,
 
 ```
                       +-----------------------------+
-                      |       WhatsApp Client       |
+                      |       WhatsApp User         |
                       +--------------+--------------+
                                      |
-                             WebSocket Connection
+                                  Message
                                      |
                                      v
                       +--------------+--------------+
-                      |         Baileys Bot         |
-                      |          (Server)           |
+                      |    Meta Cloud API Servers   |
+                      +--------------+--------------+
+                                     |
+                                Webhook POST
+                                     |
+                                     v
+                      +--------------+--------------+
+                      |    Next.js Webhook Route    |
+                      |       (/api/whatsapp)       |
                       +--------------+--------------+
                                      |
                                Route Message
@@ -54,7 +61,7 @@ Instead of downloading complex applications or using slow, offline ledger books,
                       +-----------------------------+
 ```
 
-- **Backend / Bot Runner**: Node.js custom HTTP server (`server.ts`) running the Baileys WebSocket client alongside the Next.js framework handler.
+- **Backend / Webhook Route**: Serverless Next.js API route (`/api/whatsapp`) triggered dynamically by Meta incoming message webhooks.
 - **Database**: Supabase PostgreSQL with real-time sync, transaction logging, and row-level security.
 - **Frontend Dashboard**: Next.js (React) static/dynamic dashboard page reading from custom API routes.
 
@@ -97,9 +104,14 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
+# Meta / WhatsApp Cloud API Configuration
+META_WHATSAPP_TOKEN=your-access-token
+META_PHONE_NUMBER_ID=your-phone-number-id
+META_APP_SECRET=your-app-secret
+META_WEBHOOK_VERIFY_TOKEN=any-made-up-verification-token-string
+
 # App Settings
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-PORT=3000
 ```
 
 ---
@@ -109,6 +121,7 @@ PORT=3000
 ### 1. Prerequisites
 - Node.js (v18 or higher recommended)
 - Supabase account (with PostgreSQL setup)
+- A Meta Developer Account (with WhatsApp product added to your App)
 
 ### 2. Installation
 Clone the repository and install dependencies:
@@ -125,24 +138,34 @@ Execute the SQL script located in `supabase/migrations/001_initial_schema.sql` i
 - `sales_log`
 - `credit_book`
 
-### 4. Running the Development Server
-Start both the WhatsApp bot connection and Next.js:
-```bash
-npm run dev
-```
-
-Upon launching, a **QR Code** will render in the terminal. Open WhatsApp on your phone -> three dots/Settings -> **Linked Devices** -> **Link a Device** and scan the QR code to authenticate the bot.
+### 4. Running Locally
+1. Start the Next.js development server:
+   ```bash
+   npm run dev
+   ```
+2. Start an HTTPS tunnel to expose your local port:
+   ```bash
+   ngrok http 3000
+   ```
+3. Copy the ngrok HTTPS URL (e.g. `https://xxxx.ngrok-free.app/api/whatsapp`) and paste it as the **Callback URL** in the Meta App Developer Portal under **WhatsApp > Configuration**. Specify the matching `META_WEBHOOK_VERIFY_TOKEN` and subscribe to `messages`.
 
 Your dashboard will be available at:
 `http://localhost:3000/dashboard`
 
 ---
 
+## ☁️ Deployment (Vercel)
+
+Unlike Baileys, this architecture is fully serverless and can be deployed directly to **Vercel**:
+1. Run `vercel deploy` or connect your Github repository.
+2. Add your environment variables in the Vercel dashboard settings.
+3. Configure the webhook Callback URL in the Meta Developer portal to point to `https://your-domain.vercel.app/api/whatsapp`.
+
+---
+
 ## 🛡️ Security Note
 
-The `auth_info_baileys/` directory stores your WhatsApp session credentials.
-> [!CAUTION]
-> **Never commit the `auth_info_baileys/` folder to Git.** If exposed, anyone can hijack your WhatsApp bot number. It is included in `.gitignore` by default.
+Keep your `.env.local` secure and never share the `META_APP_SECRET` or `META_WHATSAPP_TOKEN`. The `.env.local` file is excluded from Git by default.
 
 ---
 
