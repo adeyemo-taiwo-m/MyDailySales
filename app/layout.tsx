@@ -1,23 +1,52 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata, Viewport } from 'next'
+import './globals.css'
+import { Toaster } from 'react-hot-toast'
 
 export const metadata: Metadata = {
-  title: "MyDailySales — Track Sales & Debts on WhatsApp",
-  description: "A WhatsApp-first sales tracker for Nigerian shop owners. Log sales, debts, and check stock by sending simple text messages.",
-};
+  title: 'MyDailySales',
+  description: 'Know your numbers. Every day.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'MyDailySales',
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#00C853',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en">
       <head>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: '#111711',
+              color: '#F0F4F0',
+              border: '1px solid #2A362A',
+              borderRadius: '12px',
+            },
+            success: {
+              iconTheme: { primary: '#00C853', secondary: '#0A0F0A' },
+            },
+          }}
+        />
+      </body>
     </html>
-  );
+  )
 }
