@@ -15,6 +15,52 @@ export default function SignupPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  async function signupDemo() {
+    setLoading(true)
+    const formatted = formatPhone('08000000000')
+
+    const { error: sendError } = await supabase.auth.signInWithOtp({
+      phone: formatted,
+      options: { shouldCreateUser: true },
+    })
+
+    if (sendError) {
+      toast((t) => (
+        <div className="text-sm p-1">
+          <p className="font-bold text-warn mb-1">Demo OTP Setup Required</p>
+          <p className="text-xs text-[#A1A8A1] leading-relaxed mb-2">
+            To test with Demo Mode, please add this number and code in your Supabase project:
+          </p>
+          <div className="bg-[#151E15] p-2 rounded border border-[#2A322A] text-xs font-mono mb-2">
+            Phone: +2348000000000<br />
+            OTP Code: 123456
+          </div>
+          <p className="text-[11px] text-[#6B726B]">
+            Go to: <strong>Auth ➔ Providers ➔ Phone ➔ Test Phone Numbers</strong> in Supabase Dashboard.
+          </p>
+        </div>
+      ), { duration: 10000, id: 'demo-otp-hint' })
+      setLoading(false)
+      return
+    }
+
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      phone: formatted,
+      token: '123456',
+      type: 'sms',
+    })
+
+    if (verifyError) {
+      toast.error('Verify failed: Ensure code is 123456 for +2348000000000')
+      setLoading(false)
+      return
+    }
+
+    toast.success('Demo account created!')
+    router.push('/onboarding')
+    setLoading(false)
+  }
+
   async function sendOTP() {
     setLoading(true)
     const { error } = await supabase.auth.signInWithOtp({
@@ -95,6 +141,24 @@ export default function SignupPage() {
                            disabled:opacity-40 hover:bg-[#00C853]/90 transition-all"
               >
                 {loading ? 'Sending...' : 'Continue'}
+              </button>
+
+              <div className="relative my-6 text-center">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-[#1A211A]"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-[#111811] px-2 text-[#6B726B] tracking-wider">Or explore</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={signupDemo}
+                disabled={loading}
+                className="w-full bg-transparent border border-[#2A322A] text-[#00C853] hover:bg-[#00C853]/10 font-semibold py-3.5 rounded-xl transition-all"
+              >
+                Explore with Demo Mode
               </button>
             </div>
           ) : (

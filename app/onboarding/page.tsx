@@ -27,6 +27,175 @@ export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  async function populateDemoData() {
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('Session not found. Please log in first.')
+        router.push('/login')
+        return
+      }
+
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      // 1. Create Business
+      const { data: biz, error: bizError } = await supabase
+        .from('businesses')
+        .insert({
+          name: 'StyleHaus Boutique (Demo)',
+          owner_id: user.id,
+          phone: user.phone || '+2348000000000',
+        })
+        .select()
+        .single()
+
+      if (bizError || !biz) {
+        throw new Error('Business creation failed: ' + bizError?.message)
+      }
+
+      // 2. Create Owner Staff Record
+      const { data: ownerStaff, error: ownerStaffError } = await supabase
+        .from('staff_members')
+        .insert({
+          business_id: biz.id,
+          user_id: user.id,
+          name: 'Owner (Demo)',
+          role: 'owner',
+        })
+        .select()
+        .single()
+
+      if (ownerStaffError || !ownerStaff) {
+        throw new Error('Owner staff creation failed: ' + ownerStaffError?.message)
+      }
+
+      // 3. Create Demo Staff Record
+      const { data: demoStaff, error: staffError } = await supabase
+        .from('staff_members')
+        .insert({
+          business_id: biz.id,
+          user_id: generateUUID(),
+          name: 'Aisha (Demo Staff)',
+          role: 'staff',
+        })
+        .select()
+        .single()
+
+      if (staffError || !demoStaff) {
+        throw new Error('Demo staff creation failed: ' + staffError?.message)
+      }
+
+      // 4. Create Products
+      const demoProducts = [
+        { name: 'Silk Wrap Dress', selling_price: 25000, cost_price: 15000, stock_qty: 12, low_stock_threshold: 5 },
+        { name: 'Leather Tote Bag', selling_price: 45000, cost_price: 28000, stock_qty: 4, low_stock_threshold: 5 },
+        { name: 'Gold Hoop Earrings', selling_price: 12000, cost_price: 6000, stock_qty: 25, low_stock_threshold: 5 },
+        { name: 'Oversized Blazer', selling_price: 32000, cost_price: 20000, stock_qty: 8, low_stock_threshold: 5 },
+        { name: 'Velvet Heel Sandals', selling_price: 38000, cost_price: 24000, stock_qty: 3, low_stock_threshold: 5 }
+      ]
+
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .insert(demoProducts.map(p => ({ ...p, business_id: biz.id })))
+        .select()
+
+      if (productsError || !productsData) {
+        throw new Error('Product creation failed: ' + productsError?.message)
+      }
+
+      // 5. Create Mock Sales
+      const silkDress = productsData.find(p => p.name === 'Silk Wrap Dress')
+      const goldHoops = productsData.find(p => p.name === 'Gold Hoop Earrings')
+      const blazer = productsData.find(p => p.name === 'Oversized Blazer')
+
+      const salesToInsert = []
+      if (silkDress) {
+        salesToInsert.push({
+          business_id: biz.id,
+          staff_id: demoStaff.id,
+          product_id: silkDress.id,
+          qty_sold: 2,
+          price_each: silkDress.selling_price,
+          total: silkDress.selling_price * 2,
+          cost_total: (silkDress.cost_price || 0) * 2,
+          logged_at: new Date(Date.now() - 4 * 3600 * 1000).toISOString()
+        })
+      }
+      if (goldHoops) {
+        salesToInsert.push({
+          business_id: biz.id,
+          staff_id: demoStaff.id,
+          product_id: goldHoops.id,
+          qty_sold: 1,
+          price_each: goldHoops.selling_price,
+          total: goldHoops.selling_price,
+          cost_total: goldHoops.cost_price || 0,
+          logged_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString()
+        })
+      }
+      if (blazer) {
+        salesToInsert.push({
+          business_id: biz.id,
+          staff_id: ownerStaff.id,
+          product_id: blazer.id,
+          qty_sold: 1,
+          price_each: blazer.selling_price,
+          total: blazer.selling_price,
+          cost_total: blazer.cost_price || 0,
+          logged_at: new Date(Date.now() - 30 * 60 * 1000).toISOString()
+        })
+      }
+
+      if (salesToInsert.length > 0) {
+        const { error: salesError } = await supabase.from('sales').insert(salesToInsert)
+        if (salesError) {
+          throw new Error('Sales creation failed: ' + salesError.message)
+        }
+      }
+
+      // 6. Create Mock Debts
+      const debtsToInsert = [
+        {
+          business_id: biz.id,
+          customer_name: 'Chioma Nwachukwu',
+          customer_phone: '08098765432',
+          amount_owed: 30000,
+          amount_paid: 10000,
+          status: 'partial',
+          created_by: ownerStaff.id
+        },
+        {
+          business_id: biz.id,
+          customer_name: 'Funmi Adebayo',
+          customer_phone: '07012345678',
+          amount_owed: 15000,
+          amount_paid: 0,
+          status: 'unpaid',
+          created_by: demoStaff.id
+        }
+      ]
+
+      const { error: debtsError } = await supabase.from('debts').insert(debtsToInsert)
+      if (debtsError) {
+        throw new Error('Debts creation failed: ' + debtsError.message)
+      }
+
+      toast.success('Demo data populated!')
+      router.push('/dashboard')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to populate demo data.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Step 1: Create business
   async function createBusiness() {
     if (!businessName.trim()) return
@@ -207,6 +376,24 @@ export default function OnboardingPage() {
                            disabled:opacity-40 hover:bg-[#00C853]/90 transition-all"
               >
                 {loading ? 'Creating...' : 'Continue →'}
+              </button>
+
+              <div className="relative my-6 text-center">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-[#1A211A]"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-[#111811] px-2 text-[#6B726B] tracking-wider">Quick Start</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={populateDemoData}
+                disabled={loading}
+                className="w-full bg-transparent border border-[#00C853] text-[#00C853] font-semibold py-3.5 rounded-xl hover:bg-[#00C853]/10 transition-colors"
+              >
+                Auto-populate Demo Data ⚡
               </button>
             </div>
           )}
