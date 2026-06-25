@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { isIOS, isPWAInstalled, urlBase64ToUint8Array } from '@/lib/utils'
+import { isIOS, isPWAInstalled } from '@/lib/utils'
+import { urlBase64ToUint8Array } from '@/lib/push'
 import toast from 'react-hot-toast'
 
 type Step = 'business' | 'products' | 'staff' | 'notifications' | 'done'
@@ -16,6 +17,7 @@ interface ProductDraft {
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>('business')
   const [businessName, setBusinessName] = useState('')
+  const [businessPhone, setBusinessPhone] = useState('')
   const [businessId, setBusinessId] = useState('')
   const [products, setProducts] = useState<ProductDraft[]>([
     { name: '', selling_price: '', stock_qty: '' }
@@ -210,7 +212,7 @@ export default function OnboardingPage() {
       .insert({
         name: businessName.trim(),
         owner_id: user.id,
-        phone: user.phone || '',
+        phone: businessPhone.trim() || null,
       })
       .select()
       .single()
@@ -359,6 +361,9 @@ export default function OnboardingPage() {
                 What's your business called?
               </h1>
               <p className="text-[#A1A8A1] text-sm mb-6">This shows on your daily summaries.</p>
+              <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                Business Name
+              </label>
               <input
                 placeholder="e.g. FreshMart Boutique"
                 value={businessName}
@@ -367,6 +372,18 @@ export default function OnboardingPage() {
                 autoFocus
                 className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
                            text-[#FFFFFF] placeholder-[#6B726B] mb-4
+                           focus:outline-none focus:border-[#00C853] transition-colors"
+              />
+              <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                Business Phone (optional)
+              </label>
+              <input
+                placeholder="e.g. 08012345678"
+                value={businessPhone}
+                onChange={e => setBusinessPhone(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && createBusiness()}
+                className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
+                           text-[#FFFFFF] placeholder-[#6B726B] mb-6
                            focus:outline-none focus:border-[#00C853] transition-colors"
               />
               <button

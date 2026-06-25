@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { urlBase64ToUint8Array } from "@/lib/utils";
+import { urlBase64ToUint8Array } from "@/lib/push";
 
 export function usePushNotifications(businessId: string | null) {
   const supabase = createClient();

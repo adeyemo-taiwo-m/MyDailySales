@@ -2,15 +2,17 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
-import { formatPhone } from '@/lib/utils'
+import { Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function InvitePage() {
-  const [invite, setInvite] = useState<{ staff_name: string; business_name: string; staff_phone: string } | null>(null)
-  const [pin, setPin] = useState('')
-  const [confirmPin, setConfirmPin] = useState('')
-  const [otp, setOtp] = useState('')
-  const [step, setStep] = useState<'loading' | 'setup' | 'otp' | 'invalid'>('loading')
+  const [invite, setInvite] = useState<{ staff_name: string; business_name: string; business_id: string } | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [step, setStep] = useState<'loading' | 'setup' | 'invalid'>('loading')
   const [loading, setLoading] = useState(false)
   const params = useParams()
   const router = useRouter()
@@ -20,7 +22,7 @@ export default function InvitePage() {
     async function loadInvite() {
       const { data } = await supabase
         .from('pending_invites')
-        .select('staff_name, staff_phone, business_id, businesses(name), expires_at')
+        .select('staff_name, business_id, businesses(name), expires_at')
         .eq('token', params.token as string)
         .single()
 
@@ -31,7 +33,7 @@ export default function InvitePage() {
 
       setInvite({
         staff_name: data.staff_name,
-        staff_phone: data.staff_phone,
+        business_id: data.business_id,
         business_name: (data as any).businesses?.name || '',
       })
       setStep('setup')
@@ -39,61 +41,50 @@ export default function InvitePage() {
     loadInvite()
   }, [params.token, supabase])
 
-  async function sendOTP() {
-    if (pin !== confirmPin || pin.length < 4) return
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  const isPasswordLongEnough = password.length >= 8
+  const passwordsMatch = password === confirmPassword
+  const canSubmit = email.trim() !== '' && isEmailValid && isPasswordLongEnough && passwordsMatch
+
+  async function handleJoin(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canSubmit || !invite) return
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: formatPhone(invite!.staff_phone),
+    // Try signing up
+    let authRes = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: invite.staff_name,
+        },
+      },
     })
 
-    if (error) {
-      toast.error(error.message)
-    } else {
-      setStep('otp')
-      toast.success('Code sent to your phone')
+    // If email already exists, sign in instead
+    if (authRes.error?.message.includes('User already registered')) {
+      authRes = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
     }
-    setLoading(false)
-  }
 
-  async function verifyAndJoin() {
-    if (otp.length < 6) return
-    setLoading(true)
-
-    const { data: authData, error: authError } = await supabase.auth.verifyOtp({
-      phone: formatPhone(invite!.staff_phone),
-      token: otp,
-      type: 'sms',
-    })
-
-    if (authError || !authData.user) {
-      toast.error('Invalid code')
+    if (authRes.error || !authRes.data.user) {
+      toast.error(authRes.error?.message || 'Authentication failed')
       setLoading(false)
       return
     }
 
-    // Get business_id from invite token
-    const { data: inviteData } = await supabase
-      .from('pending_invites')
-      .select('business_id')
-      .eq('token', params.token as string)
-      .single()
-
-    if (!inviteData) {
-      toast.error('Invite not found')
-      setLoading(false)
-      return
-    }
-
-    // Create staff_members record via API route (needs service role)
+    // Call accept invite endpoint
     const response = await fetch('/api/invite/accept', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         token: params.token,
-        user_id: authData.user.id,
-        name: invite!.staff_name,
-        business_id: inviteData.business_id,
+        user_id: authRes.data.user.id,
+        name: invite.staff_name,
+        business_id: invite.business_id,
       }),
     })
 
@@ -103,6 +94,7 @@ export default function InvitePage() {
       return
     }
 
+    toast.success(`Welcome to ${invite.business_name}!`)
     router.push('/log-sale')
     setLoading(false)
   }
@@ -142,91 +134,101 @@ export default function InvitePage() {
             </p>
           </div>
 
-          {step === 'setup' && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-[#A1A8A1] text-xs uppercase tracking-widest mb-2 block">
-                  Your Name
-                </label>
-                <div className="bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3">
-                  <p className="text-[#FFFFFF]">{invite?.staff_name}</p>
-                </div>
+          <form onSubmit={handleJoin} className="space-y-4">
+            <div>
+              <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                Your Name
+              </label>
+              <div className="bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3">
+                <p className="text-[#FFFFFF]">{invite?.staff_name}</p>
               </div>
-              <div>
-                <label className="text-[#A1A8A1] text-xs uppercase tracking-widest mb-2 block">
-                  Set 4-Digit PIN
-                </label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  placeholder="••••"
-                  value={pin}
-                  onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
-                             text-[#FFFFFF] text-center text-2xl tracking-[0.5em] placeholder-[#6B726B]
-                             focus:outline-none focus:border-[#00C853] transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-[#A1A8A1] text-xs uppercase tracking-widest mb-2 block">
-                  Confirm PIN
-                </label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  placeholder="••••"
-                  value={confirmPin}
-                  onChange={e => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  className={`w-full bg-[#151E15] border rounded-xl px-4 py-3
-                             text-[#FFFFFF] text-center text-2xl tracking-[0.5em] placeholder-[#6B726B]
-                             focus:outline-none transition-colors ${
-                    confirmPin.length === 4 && confirmPin !== pin
-                      ? 'border-[#EF4444]'
-                      : 'border-[#1A211A] focus:border-[#00C853]'
-                  }`}
-                />
-                {confirmPin.length === 4 && confirmPin !== pin && (
-                  <p className="text-[#EF4444] text-xs mt-1">PINs don't match</p>
-                )}
-              </div>
-              <button
-                onClick={sendOTP}
-                disabled={loading || pin.length < 4 || pin !== confirmPin}
-                className="w-full bg-[#00C853] text-black font-semibold py-3.5 rounded-xl
-                           disabled:opacity-40 hover:bg-[#00C853]/90 transition-all"
-              >
-                {loading ? 'Sending code...' : 'Set PIN & Continue'}
-              </button>
             </div>
-          )}
 
-          {step === 'otp' && (
-            <div className="space-y-4">
-              <p className="text-[#A1A8A1] text-sm text-center">
-                Enter the code sent to {invite?.staff_phone}
-              </p>
+            <div>
+              <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                Your Email Address
+              </label>
               <input
-                type="number"
-                placeholder="000000"
-                value={otp}
-                onChange={e => setOtp(e.target.value.slice(0, 6))}
+                type="email"
+                required
+                placeholder="you@example.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 autoFocus
                 className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
-                           text-[#FFFFFF] text-2xl text-center tracking-[0.5em] placeholder-[#6B726B]
+                           text-[#FFFFFF] text-base placeholder-[#6B726B]
                            focus:outline-none focus:border-[#00C853] transition-colors"
               />
-              <button
-                onClick={verifyAndJoin}
-                disabled={loading || otp.length < 6}
-                className="w-full bg-[#00C853] text-black font-semibold py-3.5 rounded-xl
-                           disabled:opacity-40 hover:bg-[#00C853]/90 transition-all"
-              >
-                {loading ? 'Joining...' : 'Join Business'}
-              </button>
             </div>
-          )}
+
+            <div>
+              <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                Set a Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl pl-4 pr-12 py-3
+                             text-[#FFFFFF] text-base placeholder-[#6B726B]
+                             focus:outline-none focus:border-[#00C853] transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8A9E8A] hover:text-[#FFFFFF] transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <p className={`text-xs mt-1.5 font-medium transition-colors duration-200`} style={{ color: isPasswordLongEnough ? '#00C853' : '#4A5E4A' }}>
+                At least 8 characters
+              </p>
+            </div>
+
+            <div>
+              <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl pl-4 pr-12 py-3
+                             text-[#FFFFFF] text-base placeholder-[#6B726B]
+                             focus:outline-none focus:border-[#00C853] transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8A9E8A] hover:text-[#FFFFFF] transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {!passwordsMatch && confirmPassword.length > 0 && (
+                <p className="text-xs text-[#FF3D3D] mt-1.5 font-medium">
+                  Passwords don't match
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !canSubmit}
+              className="w-full bg-[#00C853] text-black font-semibold py-3.5 rounded-xl
+                         disabled:opacity-40 disabled:cursor-not-allowed
+                         hover:bg-[#00C853]/90 active:scale-[0.98] transition-all"
+            >
+              {loading ? 'Joining business...' : 'Set Password & Join'}
+            </button>
+          </form>
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@ export interface Business {
   id: string;
   name: string;
   owner_id: string;
-  phone: string;
+  phone?: string;
   subscription_status: SubscriptionStatus;
   trial_ends_at: string;
   created_at: string;

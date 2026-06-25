@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Unauthenticated users can only access auth pages and invite pages
-  const publicPaths = ["/login", "/signup", "/invite"];
+  const publicPaths = ["/login", "/signup", "/invite", "/auth/callback"];
   const isPublic = publicPaths.some((p) => path.startsWith(p));
 
   // Allow home page to be public or redirect to dashboard
