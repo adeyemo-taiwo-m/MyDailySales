@@ -218,7 +218,7 @@ export default function OnboardingPage() {
       .single()
 
     if (bizError || !biz) {
-      toast.error('Could not create business. Try again.')
+      toast.error(bizError?.message || 'Could not create business. Try again.')
       setLoading(false)
       return
     }
@@ -234,7 +234,7 @@ export default function OnboardingPage() {
       })
 
     if (staffError) {
-      toast.error('Setup error. Try again.')
+      toast.error(staffError.message || 'Setup error. Try again.')
       setLoading(false)
       return
     }
