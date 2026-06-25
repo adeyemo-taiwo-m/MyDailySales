@@ -149,7 +149,7 @@ export default function OnboardingPage() {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(
           process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
-        ),
+        ) as any,
       })
 
       await supabase.from('push_subscriptions').upsert({

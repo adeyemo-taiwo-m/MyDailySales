@@ -177,7 +177,7 @@ export default function ReportsPage() {
                     contentStyle={{ background: '#111811', border: '1px solid #1A211A', borderRadius: 12 }}
                     labelStyle={{ color: '#A1A8A1', fontSize: 12 }}
                     itemStyle={{ color: '#00C853', fontSize: 13 }}
-                    formatter={(v: number) => [`₦${v.toLocaleString()}`, 'Revenue']}
+                    formatter={(v: any) => [`₦${Number(v || 0).toLocaleString()}`, 'Revenue']}
                   />
                   <Bar dataKey="revenue" fill="#00C853" radius={[6, 6, 0, 0]} />
                 </BarChart>

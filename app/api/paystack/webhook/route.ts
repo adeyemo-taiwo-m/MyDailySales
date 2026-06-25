@@ -53,15 +53,19 @@ export async function POST(request: NextRequest) {
       let bizId = matchBiz?.id;
 
       if (!bizId) {
-        // Fallback: look up by auth email
-        const { data: user } = await supabase.auth.admin.getUserByEmail(customerEmail);
-        if (user?.user) {
+        // Fallback: look up by auth email or phone using listUsers
+        const { data: userData } = await supabase.auth.admin.listUsers();
+        const users = userData?.users || [];
+        const matchUser = users.find(
+          u => u.email === customerEmail || (userPhoneMatch && u.phone === userPhoneMatch)
+        );
+        if (matchUser) {
           const { data: staff } = await supabase
             .from("staff_members")
             .select("business_id")
-            .eq("user_id", user.user.id)
+            .eq("user_id", matchUser.id)
             .eq("role", "owner")
-            .single();
+            .maybeSingle();
           if (staff) bizId = staff.business_id;
         }
       }
