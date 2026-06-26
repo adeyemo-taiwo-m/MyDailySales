@@ -1,16 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Package, CreditCard, Users, BarChart3, AlertOctagon } from 'lucide-react'
+import { AlertOctagon } from 'lucide-react'
 import { headers } from 'next/headers'
-
-const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/inventory', icon: Package, label: 'Inventory' },
-  { href: '/debts', icon: CreditCard, label: 'Debts' },
-  { href: '/staff', icon: Users, label: 'Staff' },
-  { href: '/reports', icon: BarChart3, label: 'Reports' },
-]
+import { OwnerSidebarNav, OwnerBottomNav } from './owner-nav'
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -60,25 +53,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
           </span>
         </div>
 
-        <nav className="flex-1 space-y-1">
-          {navItems.map(item => {
-            const isActive = activePath === item.href
-            return (
-              <Link
-                key={item.href}
-                href={hasAccessBlocked ? '/billing' : item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                           ${isActive 
-                             ? 'bg-accent/5 text-text1 border-l-[3px] border-accent rounded-l-none pl-[9px]' 
-                             : 'text-text2 hover:text-text1 hover:bg-surface2/50'
-                           }`}
-              >
-                <item.icon size={18} className={isActive ? 'text-accent' : 'text-text2'} />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
-        </nav>
+        <OwnerSidebarNav hasAccessBlocked={hasAccessBlocked} />
       </aside>
  
       {/* Main content area */}
@@ -107,23 +82,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
       </main>
  
       {/* Bottom navigation — mobile only */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#111811] border-t border-[#1A211A]
-                      flex z-20 pb-[env(safe-area-inset-bottom)]">
-        {navItems.map(item => {
-          const isActive = activePath === item.href
-          return (
-            <Link
-              key={item.href}
-              href={hasAccessBlocked ? '/billing' : item.href}
-              className={`flex-1 flex flex-col items-center py-3 gap-1 text-xs transition-colors
-                         ${isActive ? 'text-accent' : 'text-text3 hover:text-text2'}`}
-            >
-              <item.icon size={20} className={isActive ? 'text-accent' : 'text-text3'} />
-              <span className="text-[10px] font-medium">{item.label}</span>
-            </Link>
-          )
-        })}
-      </nav>
+      <OwnerBottomNav hasAccessBlocked={hasAccessBlocked} />
     </div>
   )
 }
