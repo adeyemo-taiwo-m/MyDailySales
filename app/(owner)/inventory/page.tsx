@@ -20,23 +20,32 @@ export default function InventoryPage() {
   const supabase = createClient()
 
   const loadProducts = useCallback(async () => {
-    setLoading(true)
-    const { data: staffMember } = await supabase
-      .from('staff_members')
-      .select('business_id')
-      .single()
+    try {
+      setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    if (staffMember?.business_id) {
-      const { data } = await supabase
-        .from('products')
-        .select('*')
-        .eq('business_id', staffMember.business_id)
-        .eq('is_active', true)
-        .order('name')
+      const { data: staffMember } = await supabase
+        .from('staff_members')
+        .select('business_id')
+        .eq('user_id', user.id)
+        .single()
 
-      if (data) setProducts(data)
+      if (staffMember?.business_id) {
+        const { data } = await supabase
+          .from('products')
+          .select('*')
+          .eq('business_id', staffMember.business_id)
+          .eq('is_active', true)
+          .order('name')
+
+        if (data) setProducts(data)
+      }
+    } catch (error) {
+      console.error('Error loading products:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [supabase])
 
   useEffect(() => { loadProducts() }, [loadProducts])
@@ -46,9 +55,17 @@ export default function InventoryPage() {
     if (!name.trim() || !sellingPrice) return
     setSubmitting(true)
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error('Session error')
+      setSubmitting(false)
+      return
+    }
+
     const { data: staffMember } = await supabase
       .from('staff_members')
       .select('business_id, id')
+      .eq('user_id', user.id)
       .single()
 
     if (!staffMember?.business_id) {
@@ -99,9 +116,13 @@ export default function InventoryPage() {
     const newQty = currentQty + change
     if (newQty < 0) return
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
     const { data: staffMember } = await supabase
       .from('staff_members')
       .select('business_id, id')
+      .eq('user_id', user.id)
       .single()
 
     if (!staffMember) return

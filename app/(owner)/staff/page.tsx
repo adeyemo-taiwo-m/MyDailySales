@@ -17,25 +17,33 @@ export default function StaffPage() {
   const supabase = createClient()
 
   const loadStaff = useCallback(async () => {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) setCurrentUserId(user.id)
+    try {
+      setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setCurrentUserId(user.id)
 
-    const { data: staffMember } = await supabase
-      .from('staff_members')
-      .select('business_id')
-      .single()
+      if (user) {
+        const { data: staffMember } = await supabase
+          .from('staff_members')
+          .select('business_id')
+          .eq('user_id', user.id)
+          .single()
 
-    if (staffMember?.business_id) {
-      const { data } = await supabase
-        .from('staff_members')
-        .select('*')
-        .eq('business_id', staffMember.business_id)
-        .order('joined_at')
+        if (staffMember?.business_id) {
+          const { data } = await supabase
+            .from('staff_members')
+            .select('*')
+            .eq('business_id', staffMember.business_id)
+            .order('joined_at')
 
-      if (data) setStaffList(data)
+          if (data) setStaffList(data)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading staff:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [supabase])
 
   useEffect(() => { loadStaff() }, [loadStaff])
@@ -45,9 +53,17 @@ export default function StaffPage() {
     if (!name.trim() || !phone) return
     setSubmitting(true)
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error('Session error')
+      setSubmitting(false)
+      return
+    }
+
     const { data: staffMember } = await supabase
       .from('staff_members')
       .select('business_id')
+      .eq('user_id', user.id)
       .single()
 
     if (!staffMember) {

@@ -8,13 +8,17 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const supabase = await createClient()
   
-  // Get current user business_id
-  const { data: staffMember } = await supabase
-    .from('staff_members')
-    .select('business_id')
-    .single()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const businessId = staffMember?.business_id
+  let businessId: string | undefined
+  if (user) {
+    const { data: staffMember } = await supabase
+      .from('staff_members')
+      .select('business_id')
+      .eq('user_id', user.id)
+      .single()
+    businessId = staffMember?.business_id
+  }
 
   if (!businessId) {
     return (

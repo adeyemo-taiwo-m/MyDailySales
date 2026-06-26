@@ -23,22 +23,27 @@ export default function ReportsPage() {
   const supabase = createClient()
 
   const loadReportData = useCallback(async () => {
-    setLoading(true)
-    const { data: staffMember } = await supabase
-      .from('staff_members')
-      .select('business_id')
-      .single()
+    try {
+      setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    if (staffMember?.business_id) {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      
-      const { data } = await supabase
-        .from('sales')
-        .select('total, logged_at, product_id, staff_id, products(name), staff_members(name)')
-        .eq('business_id', staffMember.business_id)
-        .gte('logged_at', thirtyDaysAgo)
-        .eq('is_undone', false)
-        .order('logged_at')
+      const { data: staffMember } = await supabase
+        .from('staff_members')
+        .select('business_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (staffMember?.business_id) {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        
+        const { data } = await supabase
+          .from('sales')
+          .select('total, logged_at, product_id, staff_id, products(name), staff_members(name)')
+          .eq('business_id', staffMember.business_id)
+          .gte('logged_at', thirtyDaysAgo)
+          .eq('is_undone', false)
+          .order('logged_at')
 
       if (data) {
         const formattedSales: ReportSale[] = data.map(item => ({
@@ -52,7 +57,11 @@ export default function ReportsPage() {
         setSales(formattedSales)
       }
     }
-    setLoading(false)
+    } catch (error) {
+      console.error('Error loading report data:', error)
+    } finally {
+      setLoading(false)
+    }
   }, [supabase])
 
   useEffect(() => { loadReportData() }, [loadReportData])

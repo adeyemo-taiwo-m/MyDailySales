@@ -25,22 +25,31 @@ export default function DebtsPage() {
   const supabase = createClient()
 
   const loadDebts = useCallback(async () => {
-    setLoading(true)
-    const { data: staffMember } = await supabase
-      .from('staff_members')
-      .select('business_id')
-      .single()
+    try {
+      setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    if (staffMember?.business_id) {
-      const { data } = await supabase
-        .from('debts')
-        .select('*')
-        .neq('status', 'paid')
-        .order('created_at', { ascending: false })
+      const { data: staffMember } = await supabase
+        .from('staff_members')
+        .select('business_id')
+        .eq('user_id', user.id)
+        .single()
 
-      if (data) setDebts(data)
+      if (staffMember?.business_id) {
+        const { data } = await supabase
+          .from('debts')
+          .select('*')
+          .neq('status', 'paid')
+          .order('created_at', { ascending: false })
+
+        if (data) setDebts(data)
+      }
+    } catch (error) {
+      console.error('Error loading debts:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [supabase])
 
   useEffect(() => { loadDebts() }, [loadDebts])
@@ -52,9 +61,17 @@ export default function DebtsPage() {
     if (!customerName.trim() || !amountOwed) return
     setSubmitting(true)
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error('Session error')
+      setSubmitting(false)
+      return
+    }
+
     const { data: staffMember } = await supabase
       .from('staff_members')
       .select('business_id, id')
+      .eq('user_id', user.id)
       .single()
 
     if (!staffMember) {
@@ -105,9 +122,17 @@ export default function DebtsPage() {
 
     const newStatus = newPaid === debt.amount_owed ? 'paid' : 'partial'
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error('Session error')
+      setPaying(false)
+      return
+    }
+
     const { data: staffMember } = await supabase
       .from('staff_members')
       .select('id')
+      .eq('user_id', user.id)
       .single()
 
     if (!staffMember) {
