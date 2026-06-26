@@ -55,39 +55,45 @@ export async function middleware(request: NextRequest) {
 
   // Authenticated users: check role and redirect accordingly
   if (user) {
-    // If on auth page, redirect based on role
-    if (path === "/login" || path === "/signup") {
-      const { data: staffData } = await supabase
-        .from("staff_members")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
+    const { data: staffData } = await supabase
+      .from("staff_members")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-      if (staffData?.role === "staff") {
-        return NextResponse.redirect(new URL("/log-sale", request.url));
-      } else if (staffData?.role === "owner") {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
+    const hasStaffRecord = !!staffData;
+
+    if (!hasStaffRecord) {
+      // User is authenticated but has no staff/business record yet (needs onboarding)
+      if (path !== "/onboarding" && !isPublic) {
+        return NextResponse.redirect(new URL("/onboarding", request.url));
       }
-      // No staff record yet = new owner, let them reach onboarding
-    }
+      if (path === "/login" || path === "/signup") {
+        return NextResponse.redirect(new URL("/onboarding", request.url));
+      }
+    } else {
+      // User is already onboarded
+      if (path === "/onboarding") {
+        return NextResponse.redirect(
+          new URL(staffData.role === "staff" ? "/log-sale" : "/dashboard", request.url)
+        );
+      }
+      if (path === "/login" || path === "/signup") {
+        return NextResponse.redirect(
+          new URL(staffData.role === "staff" ? "/log-sale" : "/dashboard", request.url)
+        );
+      }
 
-    // Staff trying to access owner routes
-    const ownerOnlyPaths = [
-      "/dashboard",
-      "/inventory",
-      "/debts",
-      "/staff",
-      "/reports",
-      "/billing"
-    ];
-    if (ownerOnlyPaths.some((p) => path.startsWith(p))) {
-      const { data: staffData } = await supabase
-        .from("staff_members")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
-
-      if (staffData?.role === "staff") {
+      // Staff trying to access owner routes
+      const ownerOnlyPaths = [
+        "/dashboard",
+        "/inventory",
+        "/debts",
+        "/staff",
+        "/reports",
+        "/billing"
+      ];
+      if (staffData.role === "staff" && ownerOnlyPaths.some((p) => path.startsWith(p))) {
         return NextResponse.redirect(new URL("/log-sale", request.url));
       }
     }
