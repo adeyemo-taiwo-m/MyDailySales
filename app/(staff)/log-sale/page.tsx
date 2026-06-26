@@ -16,7 +16,12 @@ export default function LogSalePage() {
   const [step, setStep] = useState<SaleStep>('select')
   const [loading, setLoading] = useState(false)
   const [todayTotal, setTodayTotal] = useState(0)
-  const [lastSale, setLastSale] = useState<{ id: string; total: number } | null>(null)
+  const [lastSale, setLastSale] = useState<{ 
+    id: string 
+    total: number 
+    product_id: string 
+    qty_sold: number 
+  } | null>(null)
   const [undoSeconds, setUndoSeconds] = useState(0)
   const supabase = createClient()
 
@@ -105,7 +110,12 @@ export default function LogSalePage() {
       logged_by: staff.id,
     })
 
-    setLastSale({ id: data.id, total: saleTotal })
+    setLastSale({ 
+      id: data.id, 
+      total: saleTotal,
+      product_id: selected.id,
+      qty_sold: qty
+    })
     setUndoSeconds(300) // 5 minutes
     setTodayTotal(prev => prev + saleTotal)
 
@@ -122,6 +132,7 @@ export default function LogSalePage() {
 
   async function undoSale() {
     if (!lastSale || !staff) return
+    setLoading(true)
 
     const { error } = await supabase
       .from('sales')
@@ -129,13 +140,39 @@ export default function LogSalePage() {
       .eq('id', lastSale.id)
 
     if (!error) {
+      // 1. Get current stock qty to restore
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('stock_qty')
+        .eq('id', lastSale.product_id)
+        .single()
+
+      if (prodData) {
+        // 2. Increment stock in products table
+        await supabase
+          .from('products')
+          .update({ stock_qty: prodData.stock_qty + lastSale.qty_sold })
+          .eq('id', lastSale.product_id)
+
+        // 3. Log stock movement for undo
+        await supabase.from('stock_movements').insert({
+          business_id: staff.business_id,
+          product_id: lastSale.product_id,
+          movement_type: 'restock',
+          qty_change: lastSale.qty_sold,
+          reference_id: lastSale.id,
+          logged_by: staff.id,
+        })
+      }
+
       setTodayTotal(prev => prev - lastSale.total)
       setLastSale(null)
       setUndoSeconds(0)
-      // Reload products to restore stock
+      // Reload products to restore stock in local state
       await loadData()
       toast.success('Last sale undone')
     }
+    setLoading(false)
   }
 
   const undoMins = Math.floor(undoSeconds / 60)
