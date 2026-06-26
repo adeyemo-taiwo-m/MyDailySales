@@ -26,6 +26,7 @@ export default function InvitePage() {
   const [step, setStep] = useState<Step>('loading')
   const [otpSent, setOtpSent] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
   
   const params = useParams()
   const router = useRouter()
@@ -84,7 +85,7 @@ export default function InvitePage() {
     setLoading(true)
 
     const formattedPhone = formatPhone(invite!.staff_phone)
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       phone: formattedPhone,
       token: otp,
       type: 'sms',
@@ -97,6 +98,9 @@ export default function InvitePage() {
     }
 
     toast.success('Phone verified!')
+    if (data?.user?.id) {
+      setUserId(data.user.id)
+    }
     setStep('pin')
     setLoading(false)
   }
@@ -112,8 +116,7 @@ export default function InvitePage() {
 
     setLoading(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    if (!userId) {
       toast.error('Session not found. Try verifying your phone again.')
       setLoading(false)
       return
@@ -136,7 +139,7 @@ export default function InvitePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         token: params.token,
-        user_id: user.id,
+        user_id: userId,
         name: invite.staff_name,
         business_id: invite.business_id,
       }),
