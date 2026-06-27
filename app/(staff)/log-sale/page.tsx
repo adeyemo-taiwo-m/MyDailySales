@@ -15,6 +15,8 @@ export default function LogSalePage() {
   const [price, setPrice] = useState(0)
   const [step, setStep] = useState<SaleStep>('select')
   const [loading, setLoading] = useState(false)
+  const [loadingData, setLoadingData] = useState(true)
+  const [error, setError] = useState(false)
   const [todayTotal, setTodayTotal] = useState(0)
   const [lastSale, setLastSale] = useState<{ 
     id: string 
@@ -26,28 +28,45 @@ export default function LogSalePage() {
   const supabase = createClient()
 
   const loadData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+      setLoadingData(true)
+      setError(false)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoadingData(false)
+        return
+      }
 
-    const [{ data: staffData }, { data: productsData }] = await Promise.all([
-      supabase.from('staff_members').select('*').eq('user_id', user.id).single(),
-      supabase.from('products').select('*').eq('is_active', true).order('name'),
-    ])
+      const [{ data: staffData, error: staffError }, { data: productsData, error: productsError }] = await Promise.all([
+        supabase.from('staff_members').select('*').eq('user_id', user.id).single(),
+        supabase.from('products').select('*').eq('is_active', true).order('name'),
+      ])
 
-    if (staffData) {
-      setStaff(staffData)
-      // Load today total for this staff member
-      const today = new Date().toISOString().split('T')[0]
-      const { data: todaySales } = await supabase
-        .from('sales')
-        .select('total')
-        .eq('staff_id', staffData.id)
-        .gte('logged_at', today)
-        .eq('is_undone', false)
+      if (staffError) throw staffError
+      if (productsError) throw productsError
 
-      setTodayTotal((todaySales || []).reduce((s, sale) => s + sale.total, 0))
+      if (staffData) {
+        setStaff(staffData)
+        // Load today total for this staff member
+        const today = new Date().toISOString().split('T')[0]
+        const { data: todaySales, error: salesError } = await supabase
+          .from('sales')
+          .select('total')
+          .eq('staff_id', staffData.id)
+          .gte('logged_at', today)
+          .eq('is_undone', false)
+
+        if (salesError) throw salesError
+
+        setTodayTotal((todaySales || []).reduce((s, sale) => s + sale.total, 0))
+      }
+      if (productsData) setProducts(productsData)
+    } catch (err) {
+      console.error('Error loading log-sale data:', err)
+      setError(true)
+    } finally {
+      setLoadingData(false)
     }
-    if (productsData) setProducts(productsData)
   }, [supabase])
 
   useEffect(() => { loadData() }, [loadData])
@@ -212,7 +231,23 @@ export default function LogSalePage() {
         {step === 'select' && (
           <>
             <p className="text-[#A1A8A1] text-sm mb-4">Tap a product to log a sale</p>
-            {products.length === 0 ? (
+            {loadingData ? (
+              <div className="grid grid-cols-2 gap-3">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="skeleton h-[92px] rounded-2xl bg-[#111811] animate-pulse" />
+                ))}
+              </div>
+            ) : error ? (
+              <div className="bg-[#111811] border border-[#EF4444]/20 rounded-2xl p-8 text-center shadow-card">
+                <p className="text-[#EF4444] mb-4 text-sm">Something went wrong. Tap to retry.</p>
+                <button
+                  onClick={() => loadData()}
+                  className="btn-secondary border-[#EF4444]/30 hover:bg-[#EF4444]/10 text-white text-xs px-4 py-2"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : products.length === 0 ? (
               <div className="text-center py-16">
                 <p className="text-[#6B726B]">No products yet. Ask your manager to add products.</p>
               </div>
