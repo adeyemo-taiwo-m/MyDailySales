@@ -4,22 +4,16 @@ import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
+  const signature = request.headers.get("x-paystack-signature");
   
-  // Support both direct client callback (authenticated bypass) and signed webhook
-  const directCallback = request.headers.get("x-callback-source") === "client-direct";
-  
-  if (!directCallback) {
-    const signature = request.headers.get("x-paystack-signature");
-    
-    // Verify webhook is from Paystack
-    const hash = crypto
-      .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY!)
-      .update(body)
-      .digest("hex");
+  // Verify webhook is from Paystack
+  const hash = crypto
+    .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY!)
+    .update(body)
+    .digest("hex");
 
-    if (hash !== signature) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    }
+  if (hash !== signature) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   const event = JSON.parse(body);

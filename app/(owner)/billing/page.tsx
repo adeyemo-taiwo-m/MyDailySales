@@ -50,34 +50,30 @@ export default function BillingPage() {
     const handler = window.PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       email: userEmail || 'owner@mydailysales.com',
-      amount: amount * 100, // in kobo
+      amount: amount * 100,
       currency: 'NGN',
       plan: planCode,
       callback: async (response: { reference: string }) => {
-        toast.success('Payment received! Activating account...')
+        toast.success('Payment received! Verifying subscription...')
         
-        // Call backend API route to verify and update status immediately (webhook acts as fallback)
-        const res = await fetch('/api/paystack/webhook', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // Bypass webhook signature check during client callback for instant activation
-            'X-Callback-Source': 'client-direct'
-          },
-          body: JSON.stringify({
-            event: 'charge.success',
-            data: {
-              customer: { email: userEmail },
-              reference: response.reference,
-              status: 'success'
-            }
+        try {
+          const res = await fetch('/api/paystack/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: response.reference }),
           })
-        })
 
-        if (res.ok) {
-          window.location.href = '/dashboard'
-        } else {
-          toast.error('Activation pending verification. Refreshes in a moment.')
+          if (res.ok) {
+            toast.success('Subscription active!')
+            window.location.href = '/dashboard'
+          } else {
+            toast.error('Verification failed. We will activate in background via webhook soon.')
+            setTimeout(() => {
+              window.location.href = '/dashboard'
+            }, 3000)
+          }
+        } catch (err) {
+          toast.error('Network error during verification.')
           setTimeout(() => {
             window.location.href = '/dashboard'
           }, 3000)
