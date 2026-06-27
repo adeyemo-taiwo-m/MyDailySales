@@ -212,35 +212,87 @@ export default function DebtsPage() {
             const balance = debt.amount_owed - debt.amount_paid
             const badgeClass = debt.status === 'partial' ? 'badge-amber' : 'badge-red'
             const badgeLabel = debt.status === 'partial' ? 'Partial' : 'Unpaid'
+            const isExpanded = showPayModal?.id === debt.id
 
             return (
-              <div key={debt.id} className="bg-[#111811] border border-[#1A211A] rounded-2xl p-4 flex justify-between items-center hover:border-[#2A322A] transition-colors shadow-card">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-sm text-[#FFFFFF]">{debt.customer_name}</p>
-                    <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
-                  </div>
-                  <p className="text-[#6B726B] text-xs font-mono mt-0.5">
-                    {debt.customer_phone ? `${debt.customer_phone} · ` : ''}
-                    Logged {new Date(debt.created_at).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-sm font-extrabold text-[#F59E0B] font-display" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {formatNaira(balance)}
+              <div key={debt.id} className="bg-[#111811] border border-[#1A211A] rounded-2xl p-4 flex flex-col hover:border-[#2A322A] transition-colors shadow-card">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-sm text-[#FFFFFF]">{debt.customer_name}</p>
+                      <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
+                    </div>
+                    <p className="text-[#6B726B] text-xs font-mono mt-0.5">
+                      {debt.customer_phone ? `${debt.customer_phone} · ` : ''}
+                      Logged {new Date(debt.created_at).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' })}
                     </p>
-                    <p className="text-[#6B726B] text-[10px] uppercase tracking-wide">
-                      Owed {formatNaira(debt.amount_owed)}
+                    <p className="text-[#A1A8A1] text-xs mt-1">
+                      Paid: <span className="text-[#00C853] font-semibold">{formatNaira(debt.amount_paid)}</span> · Owed: <span className="text-[#FFFFFF]">{formatNaira(debt.amount_owed)}</span>
                     </p>
                   </div>
-                  <button
-                    onClick={() => setShowPayModal(debt)}
-                    className="btn-secondary h-9 px-3 rounded-lg text-xs"
-                  >
-                    Pay
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm font-extrabold text-[#F59E0B] font-display" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {formatNaira(balance)}
+                      </p>
+                      <p className="text-[#6B726B] text-[10px] uppercase tracking-wide">
+                        Balance
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (isExpanded) {
+                          setShowPayModal(null)
+                          setPayAmount('')
+                        } else {
+                          setShowPayModal(debt)
+                          setPayAmount('')
+                        }
+                      }}
+                      className="btn-secondary h-9 px-3 rounded-lg text-xs"
+                    >
+                      {isExpanded ? 'Cancel' : 'Pay'}
+                    </button>
+                  </div>
                 </div>
+
+                {isExpanded && (
+                  <div className="mt-4 pt-4 border-t border-[#1A211A] transition-all duration-300">
+                    <form onSubmit={handleRecordPayment} className="flex flex-col sm:flex-row items-end gap-3">
+                      <div className="flex-1 w-full">
+                        <label className="label text-[#A1A8A1] text-xs font-mono mb-1.5 block">Record Payment (₦)</label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[#6B726B] font-mono">₦</span>
+                          <input
+                            type="number"
+                            required
+                            placeholder="e.g. 5000"
+                            value={payAmount}
+                            onChange={e => setPayAmount(e.target.value)}
+                            className="input w-full bg-[#151E15] border border-[#1A211A] text-white pl-8 pr-4 py-2.5 rounded-xl focus:border-[#00C853] focus:outline-none transition-colors text-sm"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => { setShowPayModal(null); setPayAmount('') }}
+                          className="flex-1 sm:flex-initial btn-secondary h-[42px] px-4 rounded-xl text-xs flex items-center justify-center border border-[#1A211A]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={paying}
+                          className="flex-1 sm:flex-initial btn-primary h-[42px] px-4 rounded-xl text-xs bg-[#00C853] text-black font-bold flex items-center justify-center hover:brightness-105 transition-all"
+                        >
+                          {paying ? 'Recording...' : 'Submit'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -303,52 +355,6 @@ export default function DebtsPage() {
                   className="flex-1 btn-primary"
                 >
                   {submitting ? 'Logging...' : 'Log Debt'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Pay Debt Modal */}
-      {showPayModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0A0F0A]/85 backdrop-blur-sm">
-          <div className="bg-[#151E15] border border-[#2A322A] w-full max-w-sm rounded-2xl p-6 shadow-modal">
-            <h2 className="text-[#FFFFFF] text-lg font-bold font-display mb-2">Record Payment</h2>
-            <p className="text-[#A1A8A1] text-xs mb-4">
-              Enter payment received from <span className="text-[#FFFFFF] font-semibold">{showPayModal.customer_name}</span>. Total remaining: {formatNaira(showPayModal.amount_owed - showPayModal.amount_paid)}
-            </p>
-            <form onSubmit={handleRecordPayment} className="space-y-4">
-              <div>
-                <label className="label">Payment Amount</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-[#A1A8A1] font-mono">₦</span>
-                  <input
-                    type="number"
-                    required
-                    placeholder="0"
-                    value={payAmount}
-                    onChange={e => setPayAmount(e.target.value)}
-                    className="input pl-8"
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPayModal(null)}
-                  className="flex-1 btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={paying}
-                  className="flex-1 btn-primary"
-                >
-                  {paying ? 'Recording...' : 'Record Payment'}
                 </button>
               </div>
             </form>

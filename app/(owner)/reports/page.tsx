@@ -122,16 +122,36 @@ export default function ReportsPage() {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5)
 
-  // Staff comparison aggregation
-  const staffMap = new Map<string, { name: string; revenue: number }>()
-  filteredSales.forEach(s => {
-    const name = s.staff_name || 'Staff'
-    const existing = staffMap.get(s.staff_id) || { name, revenue: 0 }
-    staffMap.set(s.staff_id, { name, revenue: existing.revenue + s.total })
+  // Staff comparison aggregation: This Week vs Last Week
+  const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 })
+  const thisWeekEnd = endOfWeek(now, { weekStartsOn: 1 })
+  const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
+  const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 })
+
+  const staffCompMap = new Map<string, { name: string; thisWeek: number; lastWeek: number }>()
+
+  sales.forEach(s => {
+    const date = parseISO(s.logged_at)
+    const isThisWeek = date >= thisWeekStart && date <= thisWeekEnd
+    const isLastWeek = date >= lastWeekStart && date <= lastWeekEnd
+
+    if (isThisWeek || isLastWeek) {
+      const staffName = s.staff_name || 'Staff'
+      const existing = staffCompMap.get(s.staff_id) || { name: staffName, thisWeek: 0, lastWeek: 0 }
+      
+      if (isThisWeek) {
+        existing.thisWeek += s.total
+      } else if (isLastWeek) {
+        existing.lastWeek += s.total
+      }
+      staffCompMap.set(s.staff_id, existing)
+    }
   })
 
-  const staffStats = Array.from(staffMap.values())
-    .sort((a, b) => b.revenue - a.revenue)
+  const staffComparisonList = Array.from(staffCompMap.values())
+    .sort((a, b) => b.thisWeek - a.thisWeek)
+
+  const rangeLabel = range === 'this-week' ? 'This Week' : range === 'last-week' ? 'Last Week' : 'This Month'
 
   return (
     <div className="p-4 lg:p-8">
@@ -174,7 +194,7 @@ export default function ReportsPage() {
           {/* Main Chart */}
           <div className="bg-[#111811] border border-[#1A211A] rounded-2xl p-5 shadow-card">
             <h2 className="text-[#FFFFFF] text-sm font-semibold mb-6 uppercase tracking-wider font-mono text-[#6B726B]">
-              Revenue Over Time
+              Revenue Over Time ({rangeLabel})
             </h2>
             <div className="h-[200px] w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -199,7 +219,7 @@ export default function ReportsPage() {
             {/* Top Products */}
             <div className="bg-[#111811] border border-[#1A211A] rounded-2xl p-5 shadow-card">
               <h2 className="text-[#FFFFFF] text-sm font-semibold mb-4 uppercase tracking-wider font-mono text-[#6B726B]">
-                Top Products
+                Top 5 Products ({rangeLabel})
               </h2>
               {topProducts.length === 0 ? (
                 <p className="text-[#6B726B] text-sm py-6 text-center">No sales logged in this range</p>
@@ -218,21 +238,45 @@ export default function ReportsPage() {
               )}
             </div>
 
-            {/* Staff Performance */}
+            {/* Staff Performance (Week vs Week) */}
             <div className="bg-[#111811] border border-[#1A211A] rounded-2xl p-5 shadow-card">
               <h2 className="text-[#FFFFFF] text-sm font-semibold mb-4 uppercase tracking-wider font-mono text-[#6B726B]">
-                Staff Performance
+                Staff Performance (This Week vs Last Week)
               </h2>
-              {staffStats.length === 0 ? (
-                <p className="text-[#6B726B] text-sm py-6 text-center">No sales logged in this range</p>
+              {staffComparisonList.length === 0 ? (
+                <p className="text-[#6B726B] text-sm py-6 text-center">No sales logged recently by staff</p>
               ) : (
                 <div className="space-y-4">
-                  {staffStats.map(s => (
-                    <div key={s.name} className="flex justify-between items-center text-sm">
-                      <span className="text-[#FFFFFF] font-medium">{s.name}</span>
-                      <span className="text-[#00C853] font-semibold font-mono">{formatNaira(s.revenue)}</span>
-                    </div>
-                  ))}
+                  {staffComparisonList.map(item => {
+                    const diff = item.thisWeek - item.lastWeek
+                    const pct = item.lastWeek > 0 ? Math.round((diff / item.lastWeek) * 100) : 0
+                    
+                    let trendText = ''
+                    let trendColor = 'text-[#6B726B]'
+                    if (diff > 0) {
+                      trendText = `▲ +${formatNaira(diff)}${pct > 0 ? ` (+${pct}%)` : ''}`
+                      trendColor = 'text-[#00C853]'
+                    } else if (diff < 0) {
+                      const absPct = Math.abs(pct)
+                      trendText = `▼ -${formatNaira(Math.abs(diff))}${absPct > 0 ? ` (-${absPct}%)` : ''}`
+                      trendColor = 'text-[#EF4444]'
+                    } else {
+                      trendText = '— No change'
+                    }
+
+                    return (
+                      <div key={item.name} className="border-b border-[#1A211A] pb-3 last:border-0 last:pb-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[#FFFFFF] font-medium text-sm">{item.name}</span>
+                          <span className={`text-xs font-semibold ${trendColor}`}>{trendText}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-[#A1A8A1] font-mono">
+                          <span>This Week: {formatNaira(item.thisWeek)}</span>
+                          <span>Last Week: {formatNaira(item.lastWeek)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

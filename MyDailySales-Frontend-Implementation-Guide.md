@@ -3163,16 +3163,14 @@ Key Supabase calls:
 supabase.from("products").select("*").eq("is_active", true).order("name");
 
 // Add product
-supabase
-  .from("products")
-  .insert({
-    business_id,
-    name,
-    selling_price,
-    cost_price,
-    stock_qty,
-    low_stock_threshold,
-  });
+supabase.from("products").insert({
+  business_id,
+  name,
+  selling_price,
+  cost_price,
+  stock_qty,
+  low_stock_threshold,
+});
 
 // Update stock manually
 supabase.from("products").update({ stock_qty: newQty }).eq("id", productId);
@@ -3203,15 +3201,13 @@ supabase
   .order("created_at", { ascending: false });
 
 // Add debt
-supabase
-  .from("debts")
-  .insert({
-    business_id,
-    customer_name,
-    customer_phone,
-    amount_owed,
-    created_by: staffId,
-  });
+supabase.from("debts").insert({
+  business_id,
+  customer_name,
+  customer_phone,
+  amount_owed,
+  created_by: staffId,
+});
 
 // Record payment
 supabase

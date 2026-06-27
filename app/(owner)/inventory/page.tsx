@@ -274,89 +274,117 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Add Product Modal */}
+      {/* Add Product Drawer */}
       {showAddForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0A0F0A]/85 backdrop-blur-sm">
-          <div className="bg-[#151E15] border border-[#2A322A] w-full max-w-sm rounded-2xl p-6 shadow-modal">
-            <h2 className="text-[#FFFFFF] text-lg font-bold font-display mb-4">Add Product</h2>
-            <form onSubmit={handleAddProduct} className="space-y-4">
+        <div
+          className="fixed inset-0 z-40 bg-[#0A0F0A]/80 backdrop-blur-sm transition-opacity duration-300"
+          onClick={() => setShowAddForm(false)}
+        />
+      )}
+
+      <div
+        className={`fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[#111811] border-l border-[#1A211A] p-6 shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${
+          showAddForm ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+        }`}
+      >
+        <div className="flex justify-between items-center mb-6 border-b border-[#1A211A] pb-4">
+          <div>
+            <h2 className="text-[#FFFFFF] text-lg font-bold font-display">Add Product</h2>
+            <p className="text-[#A1A8A1] text-xs">Create a new item in your catalog</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddForm(false)}
+            className="w-8 h-8 rounded-lg bg-[#151E15] border border-[#1A211A] flex items-center justify-center text-[#A1A8A1] hover:text-[#FFFFFF] hover:bg-[#2A322A] transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleAddProduct} className="space-y-5 flex-1 flex flex-col justify-between overflow-y-auto pr-1">
+          <div className="space-y-4">
+            <div>
+              <label className="label text-[#A1A8A1] text-xs font-mono mb-1.5 block">Product Name</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Garri 1kg"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="input w-full bg-[#151E15] border border-[#1A211A] text-white px-4 py-3 rounded-xl focus:border-[#00C853] focus:outline-none transition-colors"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Product Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Garri 1kg"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="input"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Selling Price</label>
+                <label className="label text-[#A1A8A1] text-xs font-mono mb-1.5 block">Selling Price</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[#6B726B] font-mono">₦</span>
                   <input
                     type="number"
                     required
-                    placeholder="₦"
+                    placeholder="0"
                     value={sellingPrice}
                     onChange={e => setSellingPrice(e.target.value)}
-                    className="input"
+                    className="input w-full bg-[#151E15] border border-[#1A211A] text-white pl-8 pr-4 py-3 rounded-xl focus:border-[#00C853] focus:outline-none transition-colors"
                   />
                 </div>
-                <div>
-                  <label className="label">Cost Price</label>
+              </div>
+              <div>
+                <label className="label text-[#A1A8A1] text-xs font-mono mb-1.5 block">Cost Price</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[#6B726B] font-mono">₦</span>
                   <input
                     type="number"
-                    placeholder="₦ (optional)"
+                    placeholder="Optional"
                     value={costPrice}
                     onChange={e => setCostPrice(e.target.value)}
-                    className="input"
+                    className="input w-full bg-[#151E15] border border-[#1A211A] text-white pl-8 pr-4 py-3 rounded-xl focus:border-[#00C853] focus:outline-none transition-colors"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Stock Qty</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={stockQty}
-                    onChange={e => setStockQty(e.target.value)}
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="label">Low Stock Threshold</label>
-                  <input
-                    type="number"
-                    placeholder="5"
-                    value={lowStockThreshold}
-                    onChange={e => setLowStockThreshold(e.target.value)}
-                    className="input"
-                  />
-                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label text-[#A1A8A1] text-xs font-mono mb-1.5 block">Opening Stock</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={stockQty}
+                  onChange={e => setStockQty(e.target.value)}
+                  className="input w-full bg-[#151E15] border border-[#1A211A] text-white px-4 py-3 rounded-xl focus:border-[#00C853] focus:outline-none transition-colors"
+                />
               </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="flex-1 btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 btn-primary"
-                >
-                  {submitting ? 'Adding...' : 'Add Product'}
-                </button>
+              <div>
+                <label className="label text-[#A1A8A1] text-xs font-mono mb-1.5 block">Low Stock Alert</label>
+                <input
+                  type="number"
+                  placeholder="5"
+                  value={lowStockThreshold}
+                  onChange={e => setLowStockThreshold(e.target.value)}
+                  className="input w-full bg-[#151E15] border border-[#1A211A] text-white px-4 py-3 rounded-xl focus:border-[#00C853] focus:outline-none transition-colors"
+                />
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="flex gap-3 pt-6 border-t border-[#1A211A]">
+            <button
+              type="button"
+              onClick={() => setShowAddForm(false)}
+              className="flex-1 btn-secondary py-3.5 rounded-xl border border-[#1A211A] text-[#A1A8A1] hover:text-[#FFFFFF] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 btn-primary py-3.5 rounded-xl bg-[#00C853] text-black font-bold hover:brightness-105 active:scale-98 transition-all"
+            >
+              {submitting ? 'Adding...' : 'Add Product'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
