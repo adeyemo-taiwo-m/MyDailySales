@@ -10,6 +10,7 @@ export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [name, setName] = useState('')
   const [sellingPrice, setSellingPrice] = useState('')
@@ -22,27 +23,32 @@ export default function InventoryPage() {
   const loadProducts = useCallback(async () => {
     try {
       setLoading(true)
+      setError(false)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: staffMember } = await supabase
+      const { data: staffMember, error: staffError } = await supabase
         .from('staff_members')
         .select('business_id')
         .eq('user_id', user.id)
         .single()
 
+      if (staffError) throw staffError
+
       if (staffMember?.business_id) {
-        const { data } = await supabase
+        const { data, error: fetchError } = await supabase
           .from('products')
           .select('*')
           .eq('business_id', staffMember.business_id)
           .eq('is_active', true)
           .order('name')
 
+        if (fetchError) throw fetchError
         if (data) setProducts(data)
       }
-    } catch (error) {
-      console.error('Error loading products:', error)
+    } catch (err) {
+      console.error('Error loading products:', err)
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -208,6 +214,16 @@ export default function InventoryPage() {
           {[1, 2, 3].map(i => (
             <div key={i} className="skeleton h-[140px]" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="bg-[#111811] border border-[#EF4444]/20 rounded-2xl p-12 text-center shadow-card">
+          <p className="text-[#EF4444] mb-4">Something went wrong. Tap to retry.</p>
+          <button
+            onClick={() => loadProducts()}
+            className="btn-secondary border-[#EF4444]/30 hover:bg-[#EF4444]/10 text-white"
+          >
+            Retry
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="bg-[#111811] rounded-2xl border border-[#1A211A] p-12 text-center shadow-card">

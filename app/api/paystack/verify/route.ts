@@ -36,39 +36,40 @@ export async function POST(request: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Match user and business
+      let bizId = null;
+
       let userPhoneMatch = null;
       if (customerEmail && customerEmail.endsWith("@mydailysales.com")) {
         userPhoneMatch = "+" + customerEmail.split("@")[0];
       }
 
-      // Query all businesses to match phone
-      const { data: businesses } = await supabase
-        .from("businesses")
-        .select("id, phone");
+      if (userPhoneMatch) {
+        // Try matching business phone directly
+        const { data: businesses } = await supabase
+          .from("businesses")
+          .select("id, phone");
 
-      const matchBiz = businesses?.find(b => {
-        if (userPhoneMatch && b.phone === userPhoneMatch) return true;
-        return false;
-      });
+        const matchBiz = businesses?.find((b: any) => b.phone === userPhoneMatch);
+        if (matchBiz) bizId = matchBiz.id;
+      }
 
-      let bizId = matchBiz?.id;
-
-      if (!bizId && customerEmail) {
-        // Fallback: look up by auth email or phone using listUsers
-        const { data: userData } = await supabase.auth.admin.listUsers();
-        const users = userData?.users || [];
-        const matchUser = users.find(
-          u => u.email === customerEmail || (userPhoneMatch && u.phone === userPhoneMatch)
-        );
-        if (matchUser) {
-          const { data: staff } = await supabase
-            .from("staff_members")
-            .select("business_id")
-            .eq("user_id", matchUser.id)
-            .eq("role", "owner")
-            .maybeSingle();
-          if (staff) bizId = staff.business_id;
+      if (!bizId) {
+        // Fallback: search all users by email or phone
+        try {
+          const { data: userData } = await supabase.auth.admin.listUsers();
+          const users = userData?.users || [];
+          const matchUser = users.find((u: any) => u.email === customerEmail || (userPhoneMatch && u.phone === userPhoneMatch));
+          if (matchUser) {
+            const { data: staff } = await supabase
+              .from("staff_members")
+              .select("business_id")
+              .eq("user_id", matchUser.id)
+              .eq("role", "owner")
+              .maybeSingle();
+            if (staff) bizId = staff.business_id;
+          }
+        } catch (err) {
+          console.error("listUsers lookup failed in verify endpoint:", err);
         }
       }
 

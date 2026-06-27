@@ -9,6 +9,7 @@ import { Plus, CreditCard, User } from 'lucide-react'
 export default function DebtsPage() {
   const [debts, setDebts] = useState<Debt[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [showLogDebtModal, setShowLogDebtModal] = useState(false)
   const [showPayModal, setShowPayModal] = useState<Debt | null>(null)
   
@@ -27,26 +28,31 @@ export default function DebtsPage() {
   const loadDebts = useCallback(async () => {
     try {
       setLoading(true)
+      setError(false)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: staffMember } = await supabase
+      const { data: staffMember, error: staffError } = await supabase
         .from('staff_members')
         .select('business_id')
         .eq('user_id', user.id)
         .single()
 
+      if (staffError) throw staffError
+
       if (staffMember?.business_id) {
-        const { data } = await supabase
+        const { data, error: fetchError } = await supabase
           .from('debts')
           .select('*')
           .neq('status', 'paid')
           .order('created_at', { ascending: false })
 
+        if (fetchError) throw fetchError
         if (data) setDebts(data)
       }
-    } catch (error) {
-      console.error('Error loading debts:', error)
+    } catch (err) {
+      console.error('Error loading debts:', err)
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -200,6 +206,16 @@ export default function DebtsPage() {
           {[1, 2, 3].map(i => (
             <div key={i} className="skeleton h-[76px]" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="bg-[#111811] border border-[#EF4444]/20 rounded-2xl p-12 text-center shadow-card">
+          <p className="text-[#EF4444] mb-4">Something went wrong. Tap to retry.</p>
+          <button
+            onClick={() => loadDebts()}
+            className="btn-secondary border-[#EF4444]/30 hover:bg-[#EF4444]/10 text-white"
+          >
+            Retry
+          </button>
         </div>
       ) : debts.length === 0 ? (
         <div className="bg-[#111811] border border-[#1A211A] rounded-2xl p-12 text-center shadow-card">

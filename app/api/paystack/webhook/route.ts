@@ -22,48 +22,51 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
+  async function getBusinessIdFromEmail(customerEmail: string): Promise<string | null> {
+    let userPhoneMatch = null;
+    if (customerEmail.endsWith("@mydailysales.com")) {
+      userPhoneMatch = "+" + customerEmail.split("@")[0];
+    }
+
+    if (userPhoneMatch) {
+      // Try matching business phone directly
+      const { data: businesses } = await supabase
+        .from("businesses")
+        .select("id, phone");
+
+      const matchBiz = businesses?.find((b: any) => b.phone === userPhoneMatch);
+      if (matchBiz) return matchBiz.id;
+    }
+
+    // Fallback: search all users by email or phone
+    try {
+      const { data: userData } = await supabase.auth.admin.listUsers();
+      const users = userData?.users || [];
+      const matchUser = users.find((u: any) => u.email === customerEmail || (userPhoneMatch && u.phone === userPhoneMatch));
+      if (matchUser) {
+        const { data: staff } = await supabase
+          .from("staff_members")
+          .select("business_id")
+          .eq("user_id", matchUser.id)
+          .eq("role", "owner")
+          .maybeSingle();
+        if (staff) return staff.business_id;
+      }
+    } catch (err) {
+      console.error("listUsers lookup failed:", err);
+    }
+
+
+    return null;
+  }
+
   if (
     event.event === "subscription.create" ||
     event.event === "charge.success"
   ) {
     const customerEmail = event.data?.customer?.email;
     if (customerEmail) {
-      // Find user by phone if email format is from our phone conversion
-      let userPhoneMatch = null;
-      if (customerEmail.endsWith("@mydailysales.com")) {
-        userPhoneMatch = "+" + customerEmail.split("@")[0];
-      }
-
-      // Query all businesses to match owner or phone
-      const { data: businesses } = await supabase
-        .from("businesses")
-        .select("id, phone");
-
-      const matchBiz = businesses?.find(b => {
-        if (userPhoneMatch && b.phone === userPhoneMatch) return true;
-        return false;
-      });
-
-      let bizId = matchBiz?.id;
-
-      if (!bizId) {
-        // Fallback: look up by auth email or phone using listUsers
-        const { data: userData } = await supabase.auth.admin.listUsers();
-        const users = userData?.users || [];
-        const matchUser = users.find(
-          u => u.email === customerEmail || (userPhoneMatch && u.phone === userPhoneMatch)
-        );
-        if (matchUser) {
-          const { data: staff } = await supabase
-            .from("staff_members")
-            .select("business_id")
-            .eq("user_id", matchUser.id)
-            .eq("role", "owner")
-            .maybeSingle();
-          if (staff) bizId = staff.business_id;
-        }
-      }
-
+      const bizId = await getBusinessIdFromEmail(customerEmail);
       if (bizId) {
         await supabase
           .from("businesses")
@@ -76,22 +79,7 @@ export async function POST(request: NextRequest) {
   if (event.event === "subscription.disable") {
     const customerEmail = event.data?.customer?.email;
     if (customerEmail) {
-      let userPhoneMatch = null;
-      if (customerEmail.endsWith("@mydailysales.com")) {
-        userPhoneMatch = "+" + customerEmail.split("@")[0];
-      }
-
-      const { data: businesses } = await supabase
-        .from("businesses")
-        .select("id, phone");
-
-      const matchBiz = businesses?.find(b => {
-        if (userPhoneMatch && b.phone === userPhoneMatch) return true;
-        return false;
-      });
-
-      let bizId = matchBiz?.id;
-
+      const bizId = await getBusinessIdFromEmail(customerEmail);
       if (bizId) {
         await supabase
           .from("businesses")

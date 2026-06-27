@@ -20,24 +20,28 @@ export default function ReportsPage() {
   const [sales, setSales] = useState<ReportSale[]>([])
   const [range, setRange] = useState<Range>('this-week')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const supabase = createClient()
 
   const loadReportData = useCallback(async () => {
     try {
       setLoading(true)
+      setError(false)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: staffMember } = await supabase
+      const { data: staffMember, error: staffError } = await supabase
         .from('staff_members')
         .select('business_id')
         .eq('user_id', user.id)
         .single()
 
+      if (staffError) throw staffError
+
       if (staffMember?.business_id) {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
         
-        const { data } = await supabase
+        const { data, error: fetchError } = await supabase
           .from('sales')
           .select('total, logged_at, product_id, staff_id, products(name), staff_members(name)')
           .eq('business_id', staffMember.business_id)
@@ -45,20 +49,23 @@ export default function ReportsPage() {
           .eq('is_undone', false)
           .order('logged_at')
 
-      if (data) {
-        const formattedSales: ReportSale[] = data.map(item => ({
-          total: item.total,
-          logged_at: item.logged_at,
-          product_name: (item as any).products?.name || 'Unknown',
-          staff_name: (item as any).staff_members?.name || 'Staff',
-          product_id: item.product_id,
-          staff_id: item.staff_id
-        }))
-        setSales(formattedSales)
+        if (fetchError) throw fetchError
+
+        if (data) {
+          const formattedSales: ReportSale[] = data.map(item => ({
+            total: item.total,
+            logged_at: item.logged_at,
+            product_name: (item as any).products?.name || 'Unknown',
+            staff_name: (item as any).staff_members?.name || 'Staff',
+            product_id: item.product_id,
+            staff_id: item.staff_id
+          }))
+          setSales(formattedSales)
+        }
       }
-    }
-    } catch (error) {
-      console.error('Error loading report data:', error)
+    } catch (err) {
+      console.error('Error loading report data:', err)
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -187,6 +194,16 @@ export default function ReportsPage() {
             <div className="skeleton h-[220px]" />
             <div className="skeleton h-[220px]" />
           </div>
+        </div>
+      ) : error ? (
+        <div className="bg-[#111811] border border-[#EF4444]/20 rounded-2xl p-12 text-center shadow-card">
+          <p className="text-[#EF4444] mb-4">Something went wrong. Tap to retry.</p>
+          <button
+            onClick={() => loadReportData()}
+            className="btn-secondary border-[#EF4444]/30 hover:bg-[#EF4444]/10 text-white"
+          >
+            Retry
+          </button>
         </div>
       ) : (
         <div className="space-y-6">

@@ -9,6 +9,7 @@ export default function StaffPage() {
   const [staffList, setStaffList] = useState<StaffMember[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -19,28 +20,33 @@ export default function StaffPage() {
   const loadStaff = useCallback(async () => {
     try {
       setLoading(true)
+      setError(false)
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setCurrentUserId(user.id)
 
       if (user) {
-        const { data: staffMember } = await supabase
+        const { data: staffMember, error: staffError } = await supabase
           .from('staff_members')
           .select('business_id')
           .eq('user_id', user.id)
           .single()
 
+        if (staffError) throw staffError
+
         if (staffMember?.business_id) {
-          const { data } = await supabase
+          const { data, error: fetchError } = await supabase
             .from('staff_members')
             .select('*')
             .eq('business_id', staffMember.business_id)
             .order('joined_at')
 
+          if (fetchError) throw fetchError
           if (data) setStaffList(data)
         }
       }
-    } catch (error) {
-      console.error('Error loading staff:', error)
+    } catch (err) {
+      console.error('Error loading staff:', err)
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -136,6 +142,16 @@ export default function StaffPage() {
           {[1, 2].map(i => (
             <div key={i} className="skeleton h-[76px]" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="bg-[#111811] border border-[#EF4444]/20 rounded-2xl p-12 text-center shadow-card">
+          <p className="text-[#EF4444] mb-4">Something went wrong. Tap to retry.</p>
+          <button
+            onClick={() => loadStaff()}
+            className="btn-secondary border-[#EF4444]/30 hover:bg-[#EF4444]/10 text-white"
+          >
+            Retry
+          </button>
         </div>
       ) : (
         <div className="space-y-3">
