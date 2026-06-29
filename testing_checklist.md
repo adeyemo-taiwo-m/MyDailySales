@@ -26,10 +26,9 @@ Verify that roles are isolated and secure, and sessions are properly retained.
 
 ### 1.1 Owner Signup & Login
 * **Test Steps:**
-  1. Go to `/signup`. Register a new owner using a phone number.
-  2. Input the SMS OTP received.
-  3. Verify that you are redirected to `/onboarding`.
-  4. Log out, go to `/login`, and sign back in using the phone number and OTP.
+  1. Go to `/signup`. Register a new owner using name, email, and password.
+  2. Verify that you are redirected to `/onboarding`.
+  3. Log out, go to `/login`, make sure the "Owner Login" tab is selected, and sign back in using your email and password.
 * **Expected Result:**
   * User logs in successfully and receives an active Supabase session.
   * Session persists for **30 days** so they do not have to log in repeatedly.
@@ -86,16 +85,24 @@ Verify staff generation links and enrollment functionality.
   * An entry is created in the `pending_invites` table.
   * The link format is: `https://[domain]/invite/[token]`.
 
-### 3.2 Invite Acceptance
+### 3.2 Invite Acceptance (SMS-Free)
 * **Test Steps:**
   1. Open the copied invite link in a new, unauthenticated session (e.g., in an Incognito window).
   2. Verify that it displays the correct Business Name and Staff Name. Click *Continue*.
-  3. **OTP Verification:** Enter the verification code sent to the phone number.
-  4. **PIN Setup:** Set and confirm a 4-digit PIN (e.g., `1234`).
-  5. Submit the form.
+  3. **PIN Setup:** You will bypass SMS OTP and be shown the PIN Setup screen directly. Set and confirm a 4-digit PIN (e.g., `1234`).
+  4. Submit the form.
 * **Expected Result:**
-  * Staff is redirected to the `/log-sale` logging screen.
-  * **Database Validation:** The `pending_invites` record is deleted. A new row in `staff_members` is created with role = `'staff'` and the corresponding `user_id` from Supabase Auth. The 4-digit PIN is stored securely in the user's metadata.
+  * Staff is signed in automatically and redirected to the `/log-sale` logging screen.
+  * **Database Validation:** The `pending_invites` record is deleted. A new virtual auth user is created in Supabase with email `[phone_number]@mydailysales.app` and password `pin_[PIN]`. A corresponding row in `staff_members` is created with role = `'staff'`.
+
+### 3.4 Staff Login (Phone & PIN)
+* **Test Steps:**
+  1. Log out of the staff account and go to `/login`.
+  2. Tap the **Staff Login** tab.
+  3. Verify that the form inputs switch to **Phone Number** and **4-Digit PIN**.
+  4. Enter the staff phone number (e.g., `08012345678`) and the 4-digit PIN (e.g., `1234`). Click Sign In.
+* **Expected Result:**
+  * Staff is logged in securely and redirected straight to `/log-sale`. They should NOT be able to access the Owner Dashboard or see other owner pages.
 
 ### 3.3 Staff Status Toggles
 * **Test Steps:**
