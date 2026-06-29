@@ -9,7 +9,7 @@ This audit evaluates the current implementation against the definitive Product R
 
 | Module | PRD Requirement | Implementation Status | Notes |
 |---|---|---|---|
-| **Auth & Guards** | Owner OTP / Staff Invite & PIN | **Fully Implemented** | Secured with Supabase Auth & Role-based middleware |
+| **Auth & Guards** | Owner OTP / Staff Invite & PIN | **Fully Implemented (SMS-Free)** | Free virtual email/PIN login bypasses paid Twilio SMS |
 | **Sales Terminal** | Fast product card tap-to-log | **Fully Implemented** (with Search) | Added Search & auto-select. Has 5-min Undo. |
 | **Dashboard** | Metrics, Realtime feed, staff breakdown | **Fully Implemented** | Aggregates stats server-side, syncs client-side |
 | **Inventory** | Owner Catalog CRUD, search, stock audit | **Fully Implemented** | Alphabetical view, search, adjust stock, soft delete |
@@ -17,7 +17,7 @@ This audit evaluates the current implementation against the definitive Product R
 | **Reports** | Weekly chart, WoW Staff trends | **Fully Implemented** | Dynamic Recharts, YoY trends, automatic filtering |
 | **Monetization** | Paystack subscription, paywall gating | **Fully Implemented** | Verified verification API and background webhooks |
 | **Push Summaries** | nightly summaries at 9pm, iOS PWA check | **Fully Implemented** | CRON API route with webpush VAPID integration |
-| **Logout** | Sign out option for Owners and Staff | **Pending** | Plan submitted for approval |
+| **Logout** | Sign out option for Owners and Staff | **Fully Implemented** | Handled in layout headers, sidebar, and terminal header |
 | **Staff Restocking** | Staff can add stock / view catalog read-only | **Missing Gap** | Staff route is limited to sales logging |
 | **Staff Debts** | Log customer credit at point of sale | **Missing Gap** | Sales logged are cash-only; no debt option |
 | **Settings** | Change business name, change PIN, summary time | **Missing Gap** | No `/settings` route exists |
