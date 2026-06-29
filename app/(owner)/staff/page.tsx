@@ -230,7 +230,7 @@ export default function StaffPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 btn-primary"
+                    className="flex-[2] btn-primary whitespace-nowrap"
                   >
                     {submitting ? 'Generating...' : 'Create Invite Link'}
                   </button>
