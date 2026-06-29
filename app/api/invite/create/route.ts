@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const link = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invite.token}`;
+  const origin = request.nextUrl.origin;
+  const link = `${origin}/invite/${invite.token}`;
 
   return NextResponse.json({ data: { link, token: invite.token } });
 }
