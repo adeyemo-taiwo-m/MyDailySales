@@ -393,3 +393,48 @@ Verify visual styling and fault-tolerance across the app.
 * **Expected Result:**
   * A clear error card is displayed: "Something went wrong. Tap to retry."
   * Clicking the *Retry* button attempts to reload the data connection.
+
+---
+
+## 12. Security & Session Management (Sign Out)
+
+Test navigation layouts, 5-item mobile bottom nav constraints, and Sign Out functionality.
+
+### 12.1 Owner Sign Out (Desktop)
+* **Test Steps:**
+  1. Navigate to `/dashboard` on desktop.
+  2. Scroll to the bottom of the left sidebar.
+  3. Verify the **Sign Out** button is styled with text color `#8A9E8A`, and turns red (`#FF3D3D`) with a faint red background on hover.
+  4. Click the button.
+* **Expected Result:**
+  * Displays a success toast: *"Signed out successfully"*.
+  * Redirects immediately to `/login`.
+  * Session is destroyed.
+
+### 12.2 Owner Sign Out & Nav Layout (Mobile)
+* **Test Steps:**
+  1. Resize browser to a mobile viewport (e.g., width under 1024px).
+  2. Log in as an Owner.
+  3. Look at the bottom navigation bar. Verify it contains exactly **5 items** (Dashboard, Log Sale, Inventory, Debts, Reports). The "Staff" item must be absent.
+  4. Look at the top of the viewport. Verify the mobile header is visible, showing "MyDailySales" and a small **Sign Out** link on the right.
+  5. Click **Sign Out** in the top header.
+* **Expected Result:**
+  * User is signed out and redirected to `/login`.
+
+### 12.3 Contextual Staff Management Link (Mobile Dashboard)
+* **Test Steps:**
+  1. Resize browser to mobile preview and navigate to `/dashboard`.
+  2. Locate the **Staff Today** card.
+  3. Verify a small green **Manage Staff** link is displayed on the right of the title.
+  4. Click the **Manage Staff** link.
+* **Expected Result:**
+  * Redirects successfully to `/staff` where the owner can manage staff details.
+
+### 12.4 Staff Sign Out (Sales Terminal)
+* **Test Steps:**
+  1. Log in as a Staff Member.
+  2. Verify you are redirected to the `/log-sale` terminal.
+  3. Look at the top-right header area. Verify there is a **Sign Out** button (and NO "← Dashboard" link).
+  4. Click the **Sign Out** button.
+* **Expected Result:**
+  * Session is destroyed, success toast is shown, and redirected to `/login`.
