@@ -4,13 +4,16 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 
-type Step = 'loading' | 'invalid' | 'confirm' | 'otp' | 'pin'
+type Step = 'loading' | 'invalid' | 'confirm' | 'pin'
 
-function formatPhone(phone: string): string {
-  const cleaned = phone.replace(/\D/g, "");
-  if (cleaned.startsWith("0")) return "+234" + cleaned.slice(1);
-  if (cleaned.startsWith("234")) return "+" + cleaned;
-  return "+" + cleaned;
+function cleanPhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("0") && cleaned.length === 11) {
+    cleaned = "234" + cleaned.slice(1);
+  } else if (!cleaned.startsWith("234") && cleaned.length === 10) {
+    cleaned = "234" + cleaned;
+  }
+  return cleaned;
 }
 
 export default function InvitePage() {
@@ -20,19 +23,16 @@ export default function InvitePage() {
     business_name: string 
     business_id: string 
   } | null>(null)
-  const [otp, setOtp] = useState('')
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [step, setStep] = useState<Step>('loading')
-  const [otpSent, setOtpSent] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
   
   const params = useParams()
   const router = useRouter()
   const supabase = createClient()
 
-  // 1. Fetch and validate the invite token on mount
+  // Fetch and validate the invite token on mount
   useEffect(() => {
     async function loadInvite() {
       const { data, error } = await supabase
@@ -57,54 +57,6 @@ export default function InvitePage() {
     loadInvite()
   }, [params.token, supabase])
 
-  // 2. Automatically send OTP when the step changes to 'otp'
-  useEffect(() => {
-    if (step === 'otp' && invite?.staff_phone && !otpSent) {
-      setOtpSent(true)
-      sendOTP()
-    }
-  }, [step, invite?.staff_phone, otpSent])
-
-  async function sendOTP() {
-    setLoading(true)
-    const formattedPhone = formatPhone(invite!.staff_phone)
-    const { error } = await supabase.auth.signInWithOtp({
-      phone: formattedPhone,
-    })
-
-    if (error) {
-      toast.error(error.message)
-    } else {
-      toast.success('Verification code sent to your phone!')
-    }
-    setLoading(false)
-  }
-
-  async function verifyOtp() {
-    if (otp.length < 6) return
-    setLoading(true)
-
-    const formattedPhone = formatPhone(invite!.staff_phone)
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone: formattedPhone,
-      token: otp,
-      type: 'sms',
-    })
-
-    if (error) {
-      toast.error('Invalid code. Try again.')
-      setLoading(false)
-      return
-    }
-
-    toast.success('Phone verified!')
-    if (data?.user?.id) {
-      setUserId(data.user.id)
-    }
-    setStep('pin')
-    setLoading(false)
-  }
-
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault()
     if (!invite) return
@@ -116,44 +68,46 @@ export default function InvitePage() {
 
     setLoading(true)
 
-    if (!userId) {
-      toast.error('Session not found. Try verifying your phone again.')
+    try {
+      // 1. Call accept invite API endpoint (registers virtual auth user + staff member row)
+      const response = await fetch('/api/invite/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: params.token,
+          name: invite.staff_name,
+          phone: invite.staff_phone,
+          pin: pin,
+          business_id: invite.business_id,
+        }),
+      })
+
+      const resData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(resData.error || 'Could not join business')
+      }
+
+      // 2. Sign in locally using the virtual email and password (pin)
+      const email = `${cleanPhone(invite.staff_phone)}@mydailysales.app`
+      const password = `pin_${pin}`
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (signInError) {
+        throw new Error('Verification succeeded but login failed. Please sign in manually.')
+      }
+
+      toast.success(`Welcome to ${invite.business_name}!`)
+      router.push('/log-sale')
+    } catch (err: any) {
+      toast.error(err.message || 'An error occurred')
+    } finally {
       setLoading(false)
-      return
     }
-
-    // Save the PIN to user metadata
-    const { error: metaError } = await supabase.auth.updateUser({
-      data: { pin: pin }
-    })
-
-    if (metaError) {
-      toast.error('Failed to save security PIN.')
-      setLoading(false)
-      return
-    }
-
-    // Call accept invite endpoint
-    const response = await fetch('/api/invite/accept', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: params.token,
-        user_id: userId,
-        name: invite.staff_name,
-        business_id: invite.business_id,
-      }),
-    })
-
-    if (!response.ok) {
-      toast.error('Could not join business')
-      setLoading(false)
-      return
-    }
-
-    toast.success(`Welcome to ${invite.business_name}!`)
-    router.push('/log-sale')
-    setLoading(false)
   }
 
   if (step === 'loading') {
@@ -214,54 +168,11 @@ export default function InvitePage() {
 
               <button
                 type="button"
-                onClick={() => setStep('otp')}
+                onClick={() => setStep('pin')}
                 className="w-full bg-[#00C853] text-black font-semibold py-3.5 rounded-xl
                            hover:bg-[#00C853]/90 active:scale-[0.98] transition-all"
               >
                 Continue
-              </button>
-            </div>
-          )}
-
-          {/* Step 4: OTP Verification */}
-          {step === 'otp' && (
-            <div className="space-y-4">
-              <p className="text-[#A1A8A1] text-xs text-center">
-                We're sending a verification code to your phone number: <span className="text-[#FFFFFF] font-semibold">{invite?.staff_phone}</span>
-              </p>
-              <div>
-                <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
-                  6-Digit Code
-                </label>
-                <input
-                  type="number"
-                  placeholder="000000"
-                  value={otp}
-                  onChange={e => setOtp(e.target.value.slice(0, 6))}
-                  onKeyDown={e => e.key === 'Enter' && verifyOtp()}
-                  autoFocus
-                  className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
-                             text-[#FFFFFF] text-2xl text-center tracking-[0.5em] placeholder-[#6B726B]
-                             focus:outline-none focus:border-[#00C853] transition-colors"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={verifyOtp}
-                disabled={loading || otp.length < 6}
-                className="w-full bg-[#00C853] text-black font-semibold py-3.5 rounded-xl
-                           disabled:opacity-40 disabled:cursor-not-allowed
-                           hover:bg-[#00C853]/90 active:scale-[0.98] transition-all"
-              >
-                {loading ? 'Verifying...' : 'Verify Code'}
-              </button>
-              <button
-                type="button"
-                onClick={sendOTP}
-                disabled={loading}
-                className="w-full text-[#8A9E8A] text-sm py-2 hover:text-[#FFFFFF] transition-colors"
-              >
-                Resend Code
               </button>
             </div>
           )}
