@@ -14,27 +14,66 @@ const GoogleIcon = () => (
   </svg>
 )
 
+function cleanPhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("0") && cleaned.length === 11) {
+    cleaned = "234" + cleaned.slice(1);
+  } else if (!cleaned.startsWith("234") && cleaned.length === 10) {
+    cleaned = "234" + cleaned;
+  }
+  return cleaned;
+}
+
 export default function LoginPage() {
+  const [roleTab, setRoleTab] = useState<'owner' | 'staff'>('owner')
+  
+  // Owner states
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+
+  // Staff states
+  const [phone, setPhone] = useState('')
+  const [pin, setPin] = useState('')
+
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault()
-    if (!email || !password) return
     setLoading(true)
 
+    let authEmail = ''
+    let authPassword = ''
+
+    if (roleTab === 'owner') {
+      if (!email || !password) {
+        toast.error('Please enter email and password')
+        setLoading(false)
+        return
+      }
+      authEmail = email
+      authPassword = password
+    } else {
+      if (!phone || pin.length < 4) {
+        toast.error('Please enter phone number and 4-digit PIN')
+        setLoading(false)
+        return
+      }
+      const cleaned = cleanPhone(phone)
+      authEmail = `${cleaned}@mydailysales.app`
+      authPassword = `pin_${pin}`
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: authEmail,
+      password: authPassword,
     })
 
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
-        toast.error('Incorrect email or password')
+        toast.error(roleTab === 'owner' ? 'Incorrect email or password' : 'Incorrect phone or PIN')
       } else if (error.message.includes('Email not confirmed')) {
         toast.error('Check your email to confirm your account')
       } else {
@@ -92,7 +131,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#0A0F0A] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <div className="w-9 h-9 bg-[#00C853] rounded-xl flex items-center justify-center">
               <span className="text-black font-bold text-base" style={{ fontFamily: 'Space Grotesk' }}>M</span>
@@ -108,59 +147,125 @@ export default function LoginPage() {
           <h1 className="text-[#F0F4F0] text-xl font-semibold mb-1" style={{ fontFamily: 'Space Grotesk' }}>
             Welcome back
           </h1>
-          <p className="text-[#A1A8A1] text-sm mb-6">Sign in to your account</p>
+          <p className="text-[#A1A8A1] text-sm mb-5">Sign in to your account</p>
+
+          {/* Role Tabs */}
+          <div className="flex bg-[#151E15] border border-[#1A211A] rounded-xl p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => setRoleTab('owner')}
+              className={`flex-1 text-center py-2 text-xs font-semibold rounded-lg transition-all ${
+                roleTab === 'owner' 
+                  ? 'bg-[#00C853] text-black shadow-sm' 
+                  : 'text-[#8A9E8A] hover:text-[#FFFFFF]'
+              }`}
+            >
+              Owner Login
+            </button>
+            <button
+              type="button"
+              onClick={() => setRoleTab('staff')}
+              className={`flex-1 text-center py-2 text-xs font-semibold rounded-lg transition-all ${
+                roleTab === 'staff' 
+                  ? 'bg-[#00C853] text-black shadow-sm' 
+                  : 'text-[#8A9E8A] hover:text-[#FFFFFF]'
+              }`}
+            >
+              Staff Login
+            </button>
+          </div>
 
           <form onSubmit={handleSignIn} className="space-y-4">
-            <div>
-              <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                autoFocus
-                className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
-                           text-[#FFFFFF] text-base placeholder-[#6B726B]
-                           focus:outline-none focus:border-[#00C853] transition-colors"
-              />
-            </div>
+            {roleTab === 'owner' ? (
+              <>
+                <div>
+                  <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    autoFocus
+                    className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
+                               text-[#FFFFFF] text-base placeholder-[#6B726B]
+                               focus:outline-none focus:border-[#00C853] transition-colors"
+                  />
+                </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest block">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-xs text-[#8A9E8A] hover:text-[#00C853] transition-colors"
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl pl-4 pr-12 py-3
-                             text-[#FFFFFF] text-base placeholder-[#6B726B]
-                             focus:outline-none focus:border-[#00C853] transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8A9E8A] hover:text-[#FFFFFF] transition-colors"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest block">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-xs text-[#8A9E8A] hover:text-[#00C853] transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl pl-4 pr-12 py-3
+                                 text-[#FFFFFF] text-base placeholder-[#6B726B]
+                                 focus:outline-none focus:border-[#00C853] transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8A9E8A] hover:text-[#FFFFFF] transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="e.g. 08012345678"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    autoFocus
+                    className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
+                               text-[#FFFFFF] text-base placeholder-[#6B726B]
+                               focus:outline-none focus:border-[#00C853] transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[#6B726B] text-xs font-medium uppercase tracking-widest mb-2 block">
+                    4-Digit PIN
+                  </label>
+                  <input
+                    type="password"
+                    pattern="[0-9]*"
+                    inputMode="numeric"
+                    placeholder="••••"
+                    value={pin}
+                    onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3
+                               text-[#FFFFFF] text-center text-xl tracking-[1em] placeholder-[#6B726B]
+                               focus:outline-none focus:border-[#00C853] transition-colors"
+                  />
+                </div>
+              </>
+            )}
 
             <button
               type="submit"
@@ -173,31 +278,37 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="relative my-6 text-center">
-            <div className="absolute inset-0 flex items-center" aria-hidden="true">
-              <div className="w-full border-t border-[#1A211A]"></div>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-[#111811] px-2 text-[#4A5E4A] tracking-wider">or</span>
-            </div>
-          </div>
+          {roleTab === 'owner' && (
+            <>
+              <div className="relative my-6 text-center">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-[#1A211A]"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-[#111811] px-2 text-[#4A5E4A] tracking-wider">or</span>
+                </div>
+              </div>
 
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-            className="w-full bg-[#151E15] border border-[#2A322A] text-[#F0F4F0] font-semibold py-3.5 rounded-xl
-                       hover:bg-[#1A221A] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                className="w-full bg-[#151E15] border border-[#2A322A] text-[#F0F4F0] font-semibold py-3.5 rounded-xl
+                           hover:bg-[#1A221A] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+              >
+                <GoogleIcon />
+                Continue with Google
+              </button>
+            </>
+          )}
         </div>
 
-        <p className="text-center text-[#6B726B] text-sm mt-6">
-          Don't have an account?{' '}
-          <a href="/signup" className="text-[#00C853] hover:underline">Create one</a>
-        </p>
+        {roleTab === 'owner' && (
+          <p className="text-center text-[#6B726B] text-sm mt-6">
+            Don't have an account?{' '}
+            <a href="/signup" className="text-[#00C853] hover:underline">Create one</a>
+          </p>
+        )}
       </div>
     </div>
   )
