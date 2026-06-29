@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Package, CreditCard, Users, BarChart3, ShoppingBag } from 'lucide-react'
 
-const navItems = [
+const sidebarNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/log-sale', icon: ShoppingBag, label: 'Log Sale' },
   { href: '/inventory', icon: Package, label: 'Inventory' },
@@ -13,12 +13,20 @@ const navItems = [
   { href: '/reports', icon: BarChart3, label: 'Reports' },
 ]
 
+const bottomNavItems = [
+  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/log-sale', icon: ShoppingBag, label: 'Log Sale' },
+  { href: '/inventory', icon: Package, label: 'Inventory' },
+  { href: '/debts', icon: CreditCard, label: 'Debts' },
+  { href: '/reports', icon: BarChart3, label: 'Reports' },
+]
+
 export function OwnerSidebarNav({ hasAccessBlocked }: { hasAccessBlocked: boolean }) {
   const pathname = usePathname()
 
   return (
     <nav className="flex-1 space-y-1">
-      {navItems.map(item => {
+      {sidebarNavItems.map(item => {
         const isActive = pathname === item.href
         return (
           <Link
@@ -45,7 +53,7 @@ export function OwnerBottomNav({ hasAccessBlocked }: { hasAccessBlocked: boolean
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#111811] border-t border-[#1A211A]
                     flex z-20 pb-[env(safe-area-inset-bottom)]">
-      {navItems.map(item => {
+      {bottomNavItems.map(item => {
         const isActive = pathname === item.href
         return (
           <Link

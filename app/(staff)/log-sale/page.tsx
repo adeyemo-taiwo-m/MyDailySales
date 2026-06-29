@@ -7,6 +7,7 @@ import { formatNaira } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { Search } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
+import { SignOutButton } from '@/components/SignOutButton'
 
 type SaleStep = 'select' | 'quantity'
 
@@ -233,14 +234,16 @@ function LogSaleContent() {
         </div>
 
         <div className="flex flex-col items-end gap-2.5">
-          {staff?.role === 'owner' && (
+          {staff?.role === 'owner' ? (
             <Link
               href="/dashboard"
               className="bg-[#151E15] border border-[#2A322A] text-[#00C853] text-xs font-semibold px-3.5 py-2 rounded-xl hover:bg-[#2A322A] active:scale-95 transition-all"
             >
               ← Dashboard
             </Link>
-          )}
+          ) : staff?.role === 'staff' ? (
+            <SignOutButton size={14} className="bg-[#151E15] border border-[#2A322A] text-[#8A9E8A] hover:text-[#FF3D3D] text-xs font-semibold px-3.5 py-2 rounded-xl active:scale-95 transition-all flex items-center gap-1.5 w-auto" />
+          ) : null}
 
           {lastSale && undoSeconds > 0 && (
             <button

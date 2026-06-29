@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { AlertOctagon } from 'lucide-react'
 import { headers } from 'next/headers'
 import { OwnerSidebarNav, OwnerBottomNav } from './owner-nav'
+import { SignOutButton } from '@/components/SignOutButton'
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -54,10 +55,26 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         </div>
 
         <OwnerSidebarNav hasAccessBlocked={hasAccessBlocked} />
+
+        <div className="mt-auto pt-4 border-t border-[#1A211A]">
+          <SignOutButton />
+        </div>
       </aside>
  
       {/* Main content area */}
-      <main className="flex-1 lg:ml-60 pb-20 lg:pb-0 min-h-screen">
+      <main className="flex-1 lg:ml-60 pb-20 lg:pb-0 min-h-screen flex flex-col">
+        {/* Mobile Top Header */}
+        <header className="lg:hidden bg-[#111811] border-b border-[#1A211A] px-4 py-3 flex justify-between items-center z-20 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-[#00C853] rounded-lg flex items-center justify-center">
+              <span className="text-black font-bold text-xs" style={{ fontFamily: 'Space Grotesk' }}>M</span>
+            </div>
+            <span className="text-[#FFFFFF] font-semibold text-sm" style={{ fontFamily: 'Space Grotesk' }}>
+              MyDailySales
+            </span>
+          </div>
+          <SignOutButton size={14} className="bg-transparent hover:bg-transparent text-[#8A9E8A] hover:text-[#FF3D3D] transition-colors flex items-center gap-1.5 text-xs font-semibold px-2 py-1 w-auto" />
+        </header>
         {hasAccessBlocked && !activePath.includes('/billing') ? (
           <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center">
             <div className="w-16 h-16 bg-[rgba(239,68,68,0.1)] rounded-2xl flex items-center justify-center mb-6 border border-rgba(239,68,68,0.2)">

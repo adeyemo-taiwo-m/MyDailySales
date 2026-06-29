@@ -1,4 +1,5 @@
 import { formatNaira } from '@/lib/utils'
+import Link from 'next/link'
 
 interface StaffSummary {
   name: string
@@ -11,9 +12,17 @@ export function StaffBreakdown({ breakdown }: { breakdown: StaffSummary[] }) {
 
   return (
     <div className="bg-[#111811] border border-[#1A211A] rounded-2xl p-5 shadow-card">
-      <h2 className="text-[#FFFFFF] font-semibold mb-4" style={{ fontFamily: 'Space Grotesk' }}>
-        Staff Today
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-[#FFFFFF] font-semibold" style={{ fontFamily: 'Space Grotesk' }}>
+          Staff Today
+        </h2>
+        <Link
+          href="/staff"
+          className="text-xs font-semibold text-[#00C853] hover:underline transition-colors"
+        >
+          Manage Staff
+        </Link>
+      </div>
 
       {breakdown.length === 0 ? (
         <p className="text-[#6B726B] text-sm text-center py-6">No sales logged yet</p>
