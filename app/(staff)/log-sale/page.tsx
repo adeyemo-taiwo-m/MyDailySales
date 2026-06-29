@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { Product, StaffMember } from '@/types'
 import { formatNaira } from '@/lib/utils'
@@ -231,16 +232,27 @@ function LogSaleContent() {
           )}
         </div>
 
-        {lastSale && undoSeconds > 0 && (
-          <button
-            onClick={undoSale}
-            className="flex items-center gap-2 bg-[#151E15] border border-[#2A322A]
-                       px-3 py-2 rounded-xl text-[#FFFFFF] text-sm active:scale-95 transition-transform"
-          >
-            <span>↩</span>
-            <span>{undoMins}:{String(undoSecs).padStart(2, '0')}</span>
-          </button>
-        )}
+        <div className="flex flex-col items-end gap-2.5">
+          {staff?.role === 'owner' && (
+            <Link
+              href="/dashboard"
+              className="bg-[#151E15] border border-[#2A322A] text-[#00C853] text-xs font-semibold px-3.5 py-2 rounded-xl hover:bg-[#2A322A] active:scale-95 transition-all"
+            >
+              ← Dashboard
+            </Link>
+          )}
+
+          {lastSale && undoSeconds > 0 && (
+            <button
+              onClick={undoSale}
+              className="flex items-center gap-2 bg-[#151E15] border border-[#2A322A]
+                         px-3 py-2 rounded-xl text-[#FFFFFF] text-sm active:scale-95 transition-transform"
+            >
+              <span>↩</span>
+              <span>{undoMins}:{String(undoSecs).padStart(2, '0')}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main content */}
