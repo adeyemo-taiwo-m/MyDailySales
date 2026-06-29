@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/types'
 import { formatNaira } from '@/lib/utils'
@@ -249,12 +250,22 @@ export default function InventoryPage() {
                     <span className="font-bold text-sm text-[#FFFFFF] truncate" title={product.name}>
                       {product.name}
                     </span>
-                    <button
-                      onClick={() => softDeleteProduct(product.id)}
-                      className="text-[#6B726B] hover:text-[#EF4444] p-1 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Link
+                        href={product.stock_qty > 0 ? `/log-sale?productId=${product.id}` : '#'}
+                        className={`text-[10px] font-semibold bg-[#151E15] hover:bg-[#2A322A] text-[#00C853] border border-[#1A211A] px-2 py-1 rounded-md transition-colors ${
+                          product.stock_qty === 0 ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
+                        }`}
+                      >
+                        Log Sale
+                      </Link>
+                      <button
+                        onClick={() => softDeleteProduct(product.id)}
+                        className="text-[#6B726B] hover:text-[#EF4444] p-1 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div className="text-xl font-bold text-[#00C853] font-display mb-1">
                     {formatNaira(product.selling_price)}

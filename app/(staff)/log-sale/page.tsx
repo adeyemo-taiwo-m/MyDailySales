@@ -1,13 +1,15 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Product, StaffMember } from '@/types'
 import { formatNaira } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import { Search } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 
 type SaleStep = 'select' | 'quantity'
 
-export default function LogSalePage() {
+function LogSaleContent() {
   const [products, setProducts] = useState<Product[]>([])
   const [staff, setStaff] = useState<StaffMember | null>(null)
   const [selected, setSelected] = useState<Product | null>(null)
@@ -25,6 +27,9 @@ export default function LogSalePage() {
     qty_sold: number 
   } | null>(null)
   const [undoSeconds, setUndoSeconds] = useState(0)
+  const [search, setSearch] = useState('')
+  const searchParams = useSearchParams()
+  const productIdParam = searchParams.get('productId')
   const supabase = createClient()
 
   const loadData = useCallback(async () => {
@@ -60,14 +65,26 @@ export default function LogSalePage() {
 
         setTodayTotal((todaySales || []).reduce((s, sale) => s + sale.total, 0))
       }
-      if (productsData) setProducts(productsData)
+      if (productsData) {
+        setProducts(productsData)
+        // Auto-select product from URL query param if present
+        if (productIdParam) {
+          const match = productsData.find(p => p.id === productIdParam)
+          if (match && match.stock_qty > 0) {
+            setSelected(match)
+            setPrice(match.selling_price)
+            setQty(1)
+            setStep('quantity')
+          }
+        }
+      }
     } catch (err) {
       console.error('Error loading log-sale data:', err)
       setError(true)
     } finally {
       setLoadingData(false)
     }
-  }, [supabase])
+  }, [supabase, productIdParam])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -86,6 +103,7 @@ export default function LogSalePage() {
     setPrice(product.selling_price)
     setQty(1)
     setStep('quantity')
+    setSearch('') // Clear search on selection
   }
 
   async function confirmSale() {
@@ -230,7 +248,26 @@ export default function LogSalePage() {
 
         {step === 'select' && (
           <>
-            <p className="text-[#A1A8A1] text-sm mb-4">Tap a product to log a sale</p>
+            <div className="flex flex-col gap-3 mb-6">
+              <p className="text-[#A1A8A1] text-sm">Tap a product to log a sale</p>
+              
+              {/* Product Search Bar */}
+              {products.length > 0 && (
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[#6B726B]">
+                    <Search size={18} />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search product (enter at least 3 letters)..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full bg-[#111811] border border-[#1A211A] rounded-xl pl-10 pr-4 py-3 text-[#FFFFFF] text-sm focus:outline-none focus:border-[#00C853] transition-colors placeholder-[#6B726B]"
+                  />
+                </div>
+              )}
+            </div>
+
             {loadingData ? (
               <div className="grid grid-cols-2 gap-3">
                 {[1, 2, 3, 4].map(i => (
@@ -251,42 +288,59 @@ export default function LogSalePage() {
               <div className="text-center py-16">
                 <p className="text-[#6B726B]">No products yet. Ask your manager to add products.</p>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {products.map(product => (
-                  <button
-                    key={product.id}
-                    onClick={() => product.stock_qty > 0 && selectProduct(product)}
-                    disabled={product.stock_qty === 0}
-                    className={`bg-[#111811] border rounded-2xl p-4 text-left transition-all
-                               active:scale-95 ${
-                      product.stock_qty === 0
-                        ? 'border-[#1A211A] opacity-40 cursor-not-allowed'
-                        : 'border-[#1A211A] hover:border-[#00C853]'
-                    }`}
-                  >
-                    <p className="text-[#FFFFFF] font-medium text-sm mb-1 truncate leading-tight">
-                      {product.name}
-                    </p>
-                    <p className="text-[#00C853] font-bold text-base"
-                       style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {formatNaira(product.selling_price)}
-                    </p>
-                    <p className={`text-xs mt-1.5 ${
-                      product.stock_qty === 0
-                        ? 'text-[#EF4444]'
-                        : product.stock_qty <= product.low_stock_threshold
-                        ? 'text-[#F59E0B]'
-                        : 'text-[#6B726B]'
-                    }`}>
-                      {product.stock_qty === 0
-                        ? 'Out of stock'
-                        : `${product.stock_qty} left`}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              const filteredProducts = products.filter(product => {
+                if (search.trim().length >= 3) {
+                  return product.name.toLowerCase().includes(search.trim().toLowerCase())
+                }
+                return true
+              })
+              
+              if (filteredProducts.length === 0) {
+                return (
+                  <div className="text-center py-16">
+                    <p className="text-[#6B726B]">No matching products found.</p>
+                  </div>
+                )
+              }
+
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredProducts.map(product => (
+                    <button
+                      key={product.id}
+                      onClick={() => product.stock_qty > 0 && selectProduct(product)}
+                      disabled={product.stock_qty === 0}
+                      className={`bg-[#111811] border rounded-2xl p-4 text-left transition-all
+                                 active:scale-95 ${
+                        product.stock_qty === 0
+                          ? 'border-[#1A211A] opacity-40 cursor-not-allowed'
+                          : 'border-[#1A211A] hover:border-[#00C853]'
+                      }`}
+                    >
+                      <p className="text-[#FFFFFF] font-medium text-sm mb-1 truncate leading-tight">
+                        {product.name}
+                      </p>
+                      <p className="text-[#00C853] font-bold text-base"
+                         style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {formatNaira(product.selling_price)}
+                      </p>
+                      <p className={`text-xs mt-1.5 ${
+                        product.stock_qty === 0
+                          ? 'text-[#EF4444]'
+                          : product.stock_qty <= product.low_stock_threshold
+                          ? 'text-[#F59E0B]'
+                          : 'text-[#6B726B]'
+                      }`}>
+                        {product.stock_qty === 0
+                          ? 'Out of stock'
+                          : `${product.stock_qty} left`}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
           </>
         )}
 
@@ -377,5 +431,17 @@ export default function LogSalePage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function LogSalePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0A0F0A] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#00C853] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <LogSaleContent />
+    </Suspense>
   )
 }
