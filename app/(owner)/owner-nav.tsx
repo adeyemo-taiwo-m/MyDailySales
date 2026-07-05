@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, CreditCard, Users, BarChart3, ShoppingBag } from 'lucide-react'
+import { LayoutDashboard, Package, CreditCard, Users, BarChart3, ShoppingBag, Settings } from 'lucide-react'
 
 const sidebarNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -11,6 +11,7 @@ const sidebarNavItems = [
   { href: '/debts', icon: CreditCard, label: 'Debts' },
   { href: '/staff', icon: Users, label: 'Staff' },
   { href: '/reports', icon: BarChart3, label: 'Reports' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
 ]
 
 const bottomNavItems = [
@@ -19,6 +20,7 @@ const bottomNavItems = [
   { href: '/inventory', icon: Package, label: 'Inventory' },
   { href: '/debts', icon: CreditCard, label: 'Debts' },
   { href: '/reports', icon: BarChart3, label: 'Reports' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
 ]
 
 export function OwnerSidebarNav({ hasAccessBlocked }: { hasAccessBlocked: boolean }) {
