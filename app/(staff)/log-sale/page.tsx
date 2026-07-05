@@ -72,7 +72,7 @@ function LogSaleContent() {
 
         if (salesError) throw salesError
 
-        setTodayTotal((todaySales || []).reduce((s, sale) => s + sale.total, 0))
+        setTodayTotal((todaySales || []).reduce((s: number, sale: any) => s + sale.total, 0))
       }
       if (productsData) {
         setProducts(productsData)
