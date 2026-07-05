@@ -78,7 +78,7 @@ function LogSaleContent() {
         setProducts(productsData)
         // Auto-select product from URL query param if present
         if (productIdParam) {
-          const match = productsData.find(p => p.id === productIdParam)
+          const match = productsData.find((p: any) => p.id === productIdParam)
           if (match && match.stock_qty > 0) {
             setSelected(match)
             setPrice(match.selling_price)
