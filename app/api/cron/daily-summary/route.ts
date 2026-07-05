@@ -24,12 +24,17 @@ export async function GET(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  const today = new Date().toISOString().split("T")[0];
+  const { searchParams } = new URL(request.url);
+  const force = searchParams.get("force") === "true";
+
+  // Get current hour in WAT (West Africa Time = UTC + 1)
+  const currentWATDate = new Date(new Date().getTime() + 1 * 60 * 60 * 1000);
+  const currentHour = currentWATDate.getUTCHours();
 
   // Get all active businesses that have push subscriptions
   const { data: subscriptions } = await supabase
     .from("push_subscriptions")
-    .select("business_id, subscription, businesses(name, subscription_status)");
+    .select("business_id, subscription, businesses(name, subscription_status, summary_time)");
 
   if (!subscriptions || subscriptions.length === 0) {
     return NextResponse.json({ sent: 0, reason: "No subscriptions" });
@@ -37,10 +42,20 @@ export async function GET(request: NextRequest) {
 
   let sent = 0;
   let skipped = 0;
+  const today = new Date().toISOString().split("T")[0];
 
   for (const sub of subscriptions) {
     const biz = (sub as any).businesses;
     if (!biz || biz.subscription_status === "expired") {
+      skipped++;
+      continue;
+    }
+
+    // Check if the scheduled summary hour matches the current hour
+    const summaryTime = biz.summary_time || "21:00";
+    const [scheduledHour] = summaryTime.split(":").map(Number);
+
+    if (!force && currentHour !== scheduledHour) {
       skipped++;
       continue;
     }
