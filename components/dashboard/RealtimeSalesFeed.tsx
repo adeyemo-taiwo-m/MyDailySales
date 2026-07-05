@@ -17,7 +17,7 @@ export function RealtimeSalesFeed({ initialSales }: { initialSales: Sale[] }) {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'sales' },
-        async payload => {
+        async (payload: any) => {
           // Fetch full sale with joins
           const { data } = await supabase
             .from('sales')
