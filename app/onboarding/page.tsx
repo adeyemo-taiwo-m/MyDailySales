@@ -127,9 +127,9 @@ export default function OnboardingPage() {
       }
 
       // 5. Create Mock Sales
-      const silkDress = productsData.find(p => p.name === 'Silk Wrap Dress')
-      const goldHoops = productsData.find(p => p.name === 'Gold Hoop Earrings')
-      const blazer = productsData.find(p => p.name === 'Oversized Blazer')
+      const silkDress = productsData.find((p: any) => p.name === 'Silk Wrap Dress')
+      const goldHoops = productsData.find((p: any) => p.name === 'Gold Hoop Earrings')
+      const blazer = productsData.find((p: any) => p.name === 'Oversized Blazer')
 
       const salesToInsert = []
       if (silkDress) {
