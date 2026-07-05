@@ -52,7 +52,7 @@ export default function ReportsPage() {
         if (fetchError) throw fetchError
 
         if (data) {
-          const formattedSales: ReportSale[] = data.map(item => ({
+          const formattedSales: ReportSale[] = data.map((item: any) => ({
             total: item.total,
             logged_at: item.logged_at,
             product_name: (item as any).products?.name || 'Unknown',
