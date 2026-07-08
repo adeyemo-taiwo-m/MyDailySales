@@ -32,9 +32,24 @@ export async function GET(request: NextRequest) {
   const currentHour = currentWATDate.getUTCHours();
 
   // Get all active businesses that have push subscriptions
-  const { data: subscriptions } = await supabase
+  let subscriptions;
+  const res = await supabase
     .from("push_subscriptions")
     .select("business_id, subscription, businesses(name, subscription_status, summary_time)");
+
+  if (res.error) {
+    if (res.error.code === "42703") {
+      const fallbackRes = await supabase
+        .from("push_subscriptions")
+        .select("business_id, subscription, businesses(name, subscription_status)");
+      if (fallbackRes.error) throw fallbackRes.error;
+      subscriptions = fallbackRes.data;
+    } else {
+      throw res.error;
+    }
+  } else {
+    subscriptions = res.data;
+  }
 
   if (!subscriptions || subscriptions.length === 0) {
     return NextResponse.json({ sent: 0, reason: "No subscriptions" });

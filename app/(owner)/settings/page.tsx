@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [savingBusiness, setSavingBusiness] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [businessId, setBusinessId] = useState<string | null>(null)
+  const [hasSummaryTime, setHasSummaryTime] = useState(true)
 
   const supabase = createClient()
 
@@ -23,20 +24,41 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: staffMember, error: staffError } = await supabase
+      let staffMember;
+
+      const res = await supabase
         .from('staff_members')
         .select('business_id, businesses(name, summary_time)')
         .eq('user_id', user.id)
         .single()
 
-      if (staffError) throw staffError
+      if (res.error) {
+        if (res.error.code === '42703') {
+          // Column summary_time doesn't exist, fallback query without summary_time
+          setHasSummaryTime(false)
+          const fallbackRes = await supabase
+            .from('staff_members')
+            .select('business_id, businesses(name)')
+            .eq('user_id', user.id)
+            .single()
+
+          if (fallbackRes.error) throw fallbackRes.error
+          staffMember = fallbackRes.data
+        } else {
+          throw res.error
+        }
+      } else {
+        staffMember = res.data
+        setHasSummaryTime(true)
+      }
 
       if (staffMember?.business_id) {
         setBusinessId(staffMember.business_id)
         const biz = staffMember.businesses as any
         if (biz) {
-          setBusinessName(biz.name || '')
-          setSummaryTime(biz.summary_time || '21:00')
+          const actualBiz = Array.isArray(biz) ? biz[0] : biz
+          setBusinessName(actualBiz?.name || '')
+          setSummaryTime(actualBiz?.summary_time || '21:00')
         }
       }
     } catch (err) {
@@ -58,12 +80,16 @@ export default function SettingsPage() {
 
     setSavingBusiness(true)
     try {
+      const updateData: any = {
+        name: businessName.trim(),
+      }
+      if (hasSummaryTime) {
+        updateData.summary_time = summaryTime
+      }
+
       const { error } = await supabase
         .from('businesses')
-        .update({
-          name: businessName.trim(),
-          summary_time: summaryTime,
-        })
+        .update(updateData)
         .eq('id', businessId)
 
       if (error) throw error
@@ -165,7 +191,8 @@ export default function SettingsPage() {
               <select
                 value={summaryTime}
                 onChange={e => setSummaryTime(e.target.value)}
-                className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3 text-[#FFFFFF] text-sm focus:outline-none focus:border-[#00C853] transition-colors"
+                disabled={!hasSummaryTime}
+                className="w-full bg-[#151E15] border border-[#1A211A] rounded-xl px-4 py-3 text-[#FFFFFF] text-sm focus:outline-none focus:border-[#00C853] transition-colors disabled:opacity-50"
               >
                 <option value="17:00">5:00 PM (17:00)</option>
                 <option value="18:00">6:00 PM (18:00)</option>
@@ -177,7 +204,9 @@ export default function SettingsPage() {
               </select>
               <p className="text-[#6B726B] text-xs mt-2 flex items-center gap-1.5">
                 <Bell size={12} className="text-[#00C853]" />
-                Daily summaries will be sent via PWA notification at this scheduled time.
+                {hasSummaryTime 
+                  ? "Daily summaries will be sent via PWA notification at this scheduled time." 
+                  : "Daily summary schedule configuration is disabled. Database migration (004) needs to be run to add summary_time column."}
               </p>
             </div>
 
